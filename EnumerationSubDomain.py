@@ -14,25 +14,19 @@ monkey.patch_all()
 
 class EnumerationSubDomain:
 
-    def __init__(self, domain, sub_dicts, dns_servers=None, coroutine_count=200, process_num=4, is_loop_query=True):
+    def __init__(self, domain, sub_dicts, dns_servers=None, coroutine_count=200, is_loop_query=True):
         self.domain = domain
         self.sub_dicts = sub_dicts
         self.sub_domains = self.generate_sub_domains(domain, sub_dicts)
         if dns_servers == None:
-            self.dns_servers = [
-                '114.114.114.114',  # 114DNS
-                # '223.5.5.5',  # AliDNS
-                # '1.1.1.1',  # Cloudflare
-                # '119.29.29.29',  # DNSPod
-                # '1.2.4.8',  # sDNS
-                # '8.8.8.8' # Google
-                ]
+            self.dns_servers = self.auto_select_dns_server()
+        else:
+            self.dns_servers = [dns_servers]
         # {'qq.com':['111.161.64.48', '111.161.64.40']}
         self.domain_dict = {}
         # Coroutine count
         self.coroutine_count = coroutine_count
         self.is_loop_query = is_loop_query
-        self.process_num = process_num
         self.invalid_ip = ['0.0.0.1', '127.0.0.1']
 
         self.last_domains = [domain]
@@ -42,6 +36,30 @@ class EnumerationSubDomain:
         # current query domain count
         self.current_query_count = 0
 
+    def auto_select_dns_server(self):
+        dns_servers = [
+                '114.114.114.114',  # 114DNS
+                 '223.5.5.5',  # AliDNS
+                 '1.1.1.1',  # Cloudflare
+                 '119.29.29.29',  # DNSPod
+                 '1.2.4.8',  # sDNS
+                 '8.8.8.8' # Google
+                ]
+        fast_dns_server_time = 1.0
+        fast_dns_server = '' 
+        for dns_server in dns_servers:
+           resolver = dns.resolver.Resolver()
+           resolver.nameservers = [dns_server]
+           start_time = time.time()
+           answer = resolver.query('baidu.com', 'A')
+           end_time = time.time()
+           total_time = end_time - start_time
+           self.print_msg('dns_server: %s use %f to query ...' % (dns_server, total_time))
+           if total_time < fast_dns_server_time:
+               fast_dns_server = dns_server
+               fast_dns_server_time = total_time
+        self.print_msg('dns_server: %s is fast !' % fast_dns_server)
+        return [fast_dns_server]
 
     def init_tasks_queue(self, sub_domains):
         tasks_queue = Queue()
@@ -129,20 +147,20 @@ class EnumerationSubDomain:
             # Use query_domains to enumerate domain names like 'm.cn.qq.com'
             query_domains = list(set(self.current_domains) - set(self.last_domains))
             self.print_msg('use %s to enumerate ...' % str(query_domains))
-            
+
             self.last_domains = self.current_domains
             self.last_query_count = self.current_query_count
-            
+
             self.sub_domains = []
             for domain in query_domains:
                 tmp_domains = self.generate_sub_domains(domain, self.sub_dicts)
                 tmp_domains.remove(domain)
                 self.sub_domains.extend(tmp_domains)
-            
+
             self.do_concurrent_query(self.sub_domains)
 
             self.current_query_count = len(self.domain_dict)
-        
+
     def enumerate(self):
         start_time = time.time()
         self.do_concurrent_query(self.sub_domains)
