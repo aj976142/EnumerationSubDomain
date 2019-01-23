@@ -4,6 +4,7 @@
 
 ## 功能
 - 支持循环爆破  
+- 每次枚举的子域名自动加入精简字典
 
 ## 安装说明
 ```
@@ -21,6 +22,9 @@ python enum_domains.py -f you_dict.txt -d qq.com
 
 //关闭循环枚举
 python enum_domains.py -n -d qq.com
+
+//指定协程数和输出文件
+python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 
 //更多帮助
 python enum_domains.py -h

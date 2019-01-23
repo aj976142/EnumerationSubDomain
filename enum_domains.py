@@ -142,6 +142,7 @@ class EnumerationSubDomain:
             sub = domain.split('.')[0]
             sub_list.append(sub + '\n')
         sub_list = list(set(sub_list))
+        sub_list.sort()
         with open('my_sub_dicts.txt', 'w') as f:
             f.writelines(sub_list)
         new_num = len(sub_list)
