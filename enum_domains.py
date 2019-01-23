@@ -15,7 +15,8 @@ monkey.patch_all()
 
 class EnumerationSubDomain:
 
-    def __init__(self, domain, sub_dicts_file, dns_servers=None, coroutine_count=200, is_loop_query=True):
+    def __init__(self, domain, sub_dicts_file, dns_servers=None, coroutine_count=200, is_loop_query=True,
+            out_file=None):
         self.domain = domain
         self.sub_dicts = self.load_sub_dicts(sub_dicts_file)
         self.sub_domains = self.generate_sub_domains(domain, self.sub_dicts)
@@ -28,6 +29,7 @@ class EnumerationSubDomain:
         # Coroutine count
         self.coroutine_count = coroutine_count
         self.is_loop_query = is_loop_query
+        self.out_file = out_file
         self.invalid_ip = ['0.0.0.1', '127.0.0.1']
 
         self.last_domains = [domain]
@@ -189,7 +191,11 @@ class EnumerationSubDomain:
 
             self.current_query_count = len(self.domain_dict)
 
-    def write_sub_domains_to_file(self, file_name):
+    def write_sub_domains_to_file(self):
+        if self.out_file:
+            file_name = self.out_file
+        else:
+            file_name = self.domain + time.strftime("_%Y%m%d%H%M%S", time.gmtime(time.time())) + '.txt'
         domain_names = self.domain_dict.keys()
         with open(file_name,'w') as f:
             for domain in domain_names:
@@ -211,6 +217,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='A tool that can enumerate subdomains and support enumeration of subdomains above level 3')
     parser.add_argument('-d','--domain', metavar='qq.com', dest='domain', type=str, required=True, help=u'domain to enumeration')
     parser.add_argument('-f','--dict',metavar='subnames.txt',dest='dict', type=str, default='subdomains.txt', help=u'Subdomain dictionary')
+    parser.add_argument('-o','--out-file',metavar='domain.txt',dest='out_file', type=str, help=u'the file to write the result')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
@@ -224,19 +231,20 @@ def main():
    is_loop_query = args.is_loop_query
    coroutine_count = args.coroutine_count
    dns_servers = args.dns_servers
+   out_file = args.out_file
    enum_subdomain = EnumerationSubDomain(domain, sub_dicts_file, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
-               dns_servers=dns_servers)
+               dns_servers=dns_servers, out_file=out_file)
    sub_domains = {}
    try:
        sub_domains = enum_subdomain.enumerate()
    except KeyboardInterrupt as e:
        print 'user abort!'
        file_name = domain + time.strftime("_%Y%m%d%H%M%S", time.gmtime(time.time())) + '.txt'
-       enum_subdomain.write_sub_domains_to_file(file_name)
+       enum_subdomain.write_sub_domains_to_file()
        return
 
    file_name = domain + time.strftime("_%Y%m%d%H%M%S", time.gmtime(time.time())) + '.txt'
-   enum_subdomain.write_sub_domains_to_file(file_name)
+   enum_subdomain.write_sub_domains_to_file()
    
 if __name__ == '__main__':
     main()
