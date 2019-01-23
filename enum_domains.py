@@ -131,6 +131,24 @@ class EnumerationSubDomain:
             sub_domain = tasks_queue.get()
             self.query(sub_domain)
 
+    def improve_dicts(self, domains):
+        sub_list = []
+        with open('my_sub_dicts.txt','r') as f:
+            sub_list = f.readlines()
+        old_num = len(sub_list)
+        for domain in domains:
+            sub = domain.split('.')[0]
+            sub_list.append(sub + '\n')
+        sub_list = list(set(sub_list))
+        with open('my_sub_dicts.txt', 'w') as f:
+            f.writelines(sub_list)
+        new_num = len(sub_list)
+        new_num = new_num - old_num
+        self.print_msg('add %d new sub to my_sub_dicts.txt' % new_num)
+
+    def get_domains_list(self):
+        return self.domain_dict.keys()
+
     def do_concurrent_query(self, sub_domains):
         start_time = time.time()
         tasks_queue = self.init_tasks_queue(sub_domains)
@@ -141,6 +159,7 @@ class EnumerationSubDomain:
         end_time = time.time()
         total_time = int(end_time - start_time)
         self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(self.sub_domains), self.coroutine_count, total_time))
+        self.improve_dicts(self.get_domains_list())
 
 
     def loop_query(self):

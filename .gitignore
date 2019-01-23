@@ -35,6 +35,7 @@ MANIFEST
 # Installer logs
 *.txt
 !subdomains.txt
+!my_sub_dicts.txt
 
 # Unit test / coverage reports
 htmlcov/
