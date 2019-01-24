@@ -3,12 +3,13 @@
 由于网上的工具不支持循环枚举子域名，所以有了此工具。  
 
 ## 功能
-- 支持循环爆破  
+- 支持循环枚举 
+- 支持泛解析域名枚举
 - 每次枚举的子域名自动加入精简字典
 
 ## 安装说明
 ```
-pip install dnspython gevent
+pip install dnspython gevent requests
 ```
 
 ## 使用说明
@@ -18,7 +19,10 @@ pip install dnspython gevent
 python enum_domains.py -d qq.com
 
 //指定字典
-python enum_domains.py -f you_dict.txt -d qq.com
+python enum_domains.py -df you_dict.txt -d qq.com
+
+//从文件中读取域名进行枚举
+python enum_domains.py -f domains.txt
 
 //关闭循环枚举
 python enum_domains.py -n -d qq.com

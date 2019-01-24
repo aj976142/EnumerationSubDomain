@@ -8,7 +8,9 @@ import random
 import dns.resolver
 import sys
 import time
+import requests
 
+from difflib import SequenceMatcher
 from gevent import monkey
 from gevent.queue import Queue
 monkey.patch_all()
@@ -38,8 +40,12 @@ class EnumerationSubDomain:
         self.out_file = out_file
         self.domains_file = domains_file
         self.load_sub_domains_from_file(self.domains_file)
+        self.tasks_queue = None
         self.invalid_ip = ['0.0.0.1', '127.0.0.1']
         self.is_wildcard = False
+        self.wildcard_html = ''
+        self.wildcard_html_len = 0
+        self.similarity_rate = 0.8
 
         self.last_domains = [domain]
         self.current_domains = []
@@ -136,22 +142,28 @@ class EnumerationSubDomain:
                     sub_domains.append(sub_domain)
             self.print_msg('generate %s sub domains with %s ...' % (len(sub_domains), domain))
             return sub_domains
+    
+    def get_ip_from_answers(self, answers):
+        ips = []
+        ip_pattern = r'^(127\.0\.0\.1)|(localhost)|(10\.\d{1,3}\.\d{1,3}\.\d{1,3})|(172\.((1[6-9])|(2\d)|(3[01]))\.\d{1,3}\.\d{1,3})|(192\.168\.\d{1,3}\.\d{1,3})$'
+        pattern = re.compile(ip_pattern)
+        for answer in answers:
+            ip = answer.address
+            if not pattern.match(ip):
+                ips.append(ip)
+        return ips
+
 
     def query(self, domain):
         # dns_server = self.dns_servers[random.randint(0,len(self.dns_servers) - 1)]
         dns_server = self.dns_servers[0]
         answers = self.dns_query(domain)
         if answers:
-            ips = []
-            for answer in answers:
-                ip = answer.address
-                if ip in self.invalid_ip:
-                    return
-                else:
-                    ips.append(ip)
+            ips = self.get_ip_from_answers(answers)
             ips.sort()
-            self.domain_dict[domain] = ips
-            self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
+            if len(ips) >= 1:
+                self.domain_dict[domain] = ips
+                self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
 
     def print_err(self, msg):
         sys.stdout.write('[-] ' + str(msg) + '\n')
@@ -159,7 +171,10 @@ class EnumerationSubDomain:
     def concurrent_query(self, tasks_queue):
         while not tasks_queue.empty():
             sub_domain = tasks_queue.get()
-            self.query(sub_domain)
+            if self.is_wildcard:
+                self.wildcard_query(sub_domain)
+            else:
+                self.query(sub_domain)
 
     def improve_dicts(self, domains):
         sub_list = []
@@ -184,16 +199,15 @@ class EnumerationSubDomain:
 
         start_time = time.time()
         sub_domains = self.generate_sub_domains(domain, sub_dicts)
-        tasks_queue = self.init_tasks_queue(sub_domains)
+        self.tasks_queue = self.init_tasks_queue(sub_domains)
         tasks = []
         for i in range(self.coroutine_count):
-            tasks.append(gevent.spawn(self.concurrent_query, tasks_queue))
+            tasks.append(gevent.spawn(self.concurrent_query, self.tasks_queue))
         gevent.joinall(tasks)
         end_time = time.time()
         total_time = int(end_time - start_time)
         self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(sub_domains), self.coroutine_count, total_time))
         self.improve_dicts(self.get_domains_list())
-
 
     def loop_query(self):
         self.current_query_count = len(self.domain_dict)
@@ -246,6 +260,34 @@ class EnumerationSubDomain:
             pass
         return answers
 
+    def get_html_from_domain(self, domain):
+        html = None
+        try:
+            url = 'http://' + domain
+            response = requests.get(url, headers={"Connection": "close"})
+            html = response.text
+        except Exception as e:
+            self.tasks_queue.put(domain)
+        return html
+
+    def wildcard_query(self, domain):
+        domain_html = self.get_html_from_domain(domain)
+        if domain_html:
+            domain_html_len = len(domain_html)
+            if domain_html_len == self.wildcard_html_len:
+                similarity_rate = 1.0
+            else:
+                similarity_rate = SequenceMatcher(None, domain_html, self.wildcard_html).real_quick_ratio()
+                similarity_rate = round(similarity_rate, 3)
+            if similarity_rate < self.similarity_rate:
+                # exist sub domain
+                answers = self.dns_query(domain)
+                if answers:
+                    ips = self.get_ip_from_answers(answers)
+                    if len(ips) >= 1:
+                        self.domain_dict[domain] = ips
+                        self.print_msg('dns_server:%s, domain: %s , ips:%s, html len %d' % (self.dns_servers[0],  domain, str(ips), domain_html_len))
+
     def is_wildcard_resovler(self, domain):
         sub = self.get_current_time_str()
         not_exist_domain = sub + '.' + domain
@@ -253,6 +295,9 @@ class EnumerationSubDomain:
         if answers:
             self.is_wildcard = True
             self.print_msg('%s is wildcard !' % domain)
+            self.wildcard_html = self.get_html_from_domain(not_exist_domain)
+            self.wildcard_html_len = len(self.wildcard_html)
+            self.print_msg('len of wildcard html is %d !' % self.wildcard_html_len) 
             return True
         else:
             self.is_wildcard = False
