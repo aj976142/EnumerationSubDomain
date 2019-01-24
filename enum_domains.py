@@ -26,7 +26,6 @@ class EnumerationSubDomain:
             self.domains.append(domain)
 
         self.sub_dicts = self.load_sub_dicts(sub_dicts_file)
-        self.sub_domains = self.generate_sub_domains(domain, self.sub_dicts)
         if dns_servers == None:
             self.dns_servers = self.auto_select_dns_server()
         else:
@@ -64,8 +63,6 @@ class EnumerationSubDomain:
                 for domain in domains:
                     domain = domain.strip()
                     self.domains.append(domain)
-                    self.sub_domains.extend(self.generate_sub_domains(domain, self.sub_dicts))
-            self.sub_domains = self.no_repeat_not_sort(self.sub_domains)
             self.domains = self.no_repeat_not_sort(self.domains)
     
     def load_sub_dicts(self, sub_dicts_file):
@@ -182,8 +179,11 @@ class EnumerationSubDomain:
     def get_domains_list(self):
         return self.domain_dict.keys()
 
-    def do_concurrent_query(self, sub_domains):
+    def do_concurrent_query(self, domain, sub_dicts):
+        self.is_wildcard_resovler(domain) 
+
         start_time = time.time()
+        sub_domains = self.generate_sub_domains(domain, sub_dicts)
         tasks_queue = self.init_tasks_queue(sub_domains)
         tasks = []
         for i in range(self.coroutine_count):
@@ -191,7 +191,7 @@ class EnumerationSubDomain:
         gevent.joinall(tasks)
         end_time = time.time()
         total_time = int(end_time - start_time)
-        self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(self.sub_domains), self.coroutine_count, total_time))
+        self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(sub_domains), self.coroutine_count, total_time))
         self.improve_dicts(self.get_domains_list())
 
 
@@ -212,13 +212,8 @@ class EnumerationSubDomain:
             self.last_domains = self.current_domains
             self.last_query_count = self.current_query_count
 
-            self.sub_domains = []
             for domain in query_domains:
-                tmp_domains = self.generate_sub_domains(domain, self.sub_dicts)
-                tmp_domains.remove(domain)
-                self.sub_domains.extend(tmp_domains)
-
-            self.do_concurrent_query(self.sub_domains)
+                self.do_concurrent_query(domain, self.sub_dicts)
 
             self.current_query_count = len(self.domain_dict)
 
@@ -254,29 +249,27 @@ class EnumerationSubDomain:
     def is_wildcard_resovler(self, domain):
         sub = self.get_current_time_str()
         not_exist_domain = sub + '.' + domain
-        self.print_msg('generate wildcard domain %s ' % not_exist_domain)
-        answers = self.dns_query(domain)
-        if answers == None:
-            self.is_wildcard = False
-            return False
-        else:
+        answers = self.dns_query(not_exist_domain)
+        if answers:
             self.is_wildcard = True
+            self.print_msg('%s is wildcard !' % domain)
             return True
+        else:
+            self.is_wildcard = False
+            self.print_msg('%s is not wildcard !' % domain)
+            return False
 
     def enumerate(self):
 
-        if self.domain and self.is_wildcard_resovler(self.domain):
-            self.print_msg('domain %s is wildcard resolver !' % self.domain)
-            sys.exit()
-
         start_time = time.time()
-        self.do_concurrent_query(self.sub_domains)
+        for domain in self.domains:
+            self.do_concurrent_query(domain, self.sub_dicts)
         if self.is_loop_query:
             self.loop_query()
 
         end_time = time.time()
         total_time = int(end_time - start_time)
-        self.print_msg('%s found %d sub domain ! The time used is %d seconds!' % (self.domain, len(self.domain_dict), total_time))
+        self.print_msg('found %d sub domain ! The time used is %d seconds!' % (len(self.domain_dict), total_time))
         self.write_sub_domains_to_file()
         return self.domain_dict
 
