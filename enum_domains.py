@@ -18,7 +18,7 @@ monkey.patch_all()
 class EnumerationSubDomain:
 
     def __init__(self, sub_dicts_file, domain=None, dns_servers=None, coroutine_count=200, is_loop_query=True,
-            out_file=None, domains_file=None):
+            out_file=None, domains_file=None, filter_pattern=None):
         if domain == None and domains_file == None:
             raise RuntimeError('must set domain or domains_file! use -d or -f args!')
 
@@ -41,11 +41,14 @@ class EnumerationSubDomain:
         self.domains_file = domains_file
         self.load_sub_domains_from_file(self.domains_file)
         self.tasks_queue = None
-        self.invalid_ip = ['0.0.0.1', '127.0.0.1']
+        self.invalid_ip = ['0.0.0.1']
         self.is_wildcard = False
         self.wildcard_html = ''
         self.wildcard_html_len = 0
         self.similarity_rate = 0.8
+        self.filter_pattern = filter_pattern
+        if self.filter_pattern:
+            self.filter_pattern = unicode(self.filter_pattern, 'utf-8')
 
         self.last_domains = [domain]
         self.current_domains = []
@@ -149,7 +152,7 @@ class EnumerationSubDomain:
         pattern = re.compile(ip_pattern)
         for answer in answers:
             ip = answer.address
-            if not pattern.match(ip):
+            if not pattern.match(ip) and ip not in self.invalid_ip:
                 ips.append(ip)
         return ips
 
@@ -265,6 +268,7 @@ class EnumerationSubDomain:
         try:
             url = 'http://' + domain
             response = requests.get(url, headers={"Connection": "close"})
+            response.encoding = 'utf-8'
             html = response.text
         except Exception as e:
             self.tasks_queue.put(domain)
@@ -285,8 +289,11 @@ class EnumerationSubDomain:
                 if answers:
                     ips = self.get_ip_from_answers(answers)
                     if len(ips) >= 1:
-                        self.domain_dict[domain] = ips
-                        self.print_msg('dns_server:%s, domain: %s , ips:%s, html len %d' % (self.dns_servers[0],  domain, str(ips), domain_html_len))
+                        if self.filter_pattern in domain_html:
+                            self.print_msg('%s domain match filter pass!' % domain)
+                        else:
+                            self.domain_dict[domain] = ips
+                            self.print_msg('dns_server:%s, domain: %s , ips:%s, html len %d' % (self.dns_servers[0],  domain, str(ips), domain_html_len))
 
     def is_wildcard_resovler(self, domain):
         sub = self.get_current_time_str()
@@ -324,6 +331,7 @@ def parse_args():
     parser.add_argument('-df','--dict-file',metavar='subnames.txt',dest='dict_file', type=str, default='subdomains.txt', help=u'Subdomain dictionary')
     parser.add_argument('-o','--out-file',metavar='domain.txt',dest='out_file', type=str, help=u'the file to write the result')
     parser.add_argument('-f','--domains-file',metavar='domains.txt',dest='domains_file', type=str, help=u'Read the domain name to be enumerated from this file')
+    parser.add_argument('--filter',metavar=u'xxx shop',dest='filter_pattern', type=str, help=u'filter to skip domain\' html match this string')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
@@ -342,9 +350,10 @@ def main():
    dns_servers = args.dns_servers
    out_file = args.out_file
    domains_file = args.domains_file
+   filter_pattern = args.filter_pattern
 
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
-               dns_servers=dns_servers, out_file=out_file, domains_file=domains_file)
+               dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern)
    try:
        enum_subdomain.enumerate()
    except KeyboardInterrupt as e:
