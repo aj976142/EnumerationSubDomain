@@ -40,6 +40,7 @@ class EnumerationSubDomain:
         self.domains_file = domains_file
         self.load_sub_domains_from_file(self.domains_file)
         self.invalid_ip = ['0.0.0.1', '127.0.0.1']
+        self.is_wildcard = False
 
         self.last_domains = [domain]
         self.current_domains = []
@@ -142,24 +143,18 @@ class EnumerationSubDomain:
     def query(self, domain):
         # dns_server = self.dns_servers[random.randint(0,len(self.dns_servers) - 1)]
         dns_server = self.dns_servers[0]
-        resolver = dns.resolver.Resolver()
-        resolver.nameservers = [dns_server]
-        try:
-            answers = resolver.query(domain, 'A')
-            if answers:
-                ips = []
-                for answer in answers:
-                    ip = answer.address
-                    if ip in self.invalid_ip:
-                        return
-                    else:
-                        ips.append(ip)
-                ips.sort()
-                self.domain_dict[domain] = ips
-                self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
-        except Exception as e:
-            # self.print_err('dns_server:%s, domain:%s, error:%s' % (dns_server, domain, str(e)))
-            pass
+        answers = self.dns_query(domain)
+        if answers:
+            ips = []
+            for answer in answers:
+                ip = answer.address
+                if ip in self.invalid_ip:
+                    return
+                else:
+                    ips.append(ip)
+            ips.sort()
+            self.domain_dict[domain] = ips
+            self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
 
     def print_err(self, msg):
         sys.stdout.write('[-] ' + str(msg) + '\n')
@@ -232,9 +227,9 @@ class EnumerationSubDomain:
             file_name = self.out_file
         else:
             if self.domain:
-                file_name = self.domain + time.strftime("_%Y%m%d%H%M%S", time.gmtime(time.time())) + '.txt'
+                file_name = self.domain + self.get_current_time_str() + '.txt'
             else:
-                file_name = self.domains_file + time.strftime("_%Y%m%d%H%M%S", time.gmtime(time.time())) + '.txt'
+                file_name = self.domains_file + self.get_current_time_str() + '.txt'
         domain_names = self.domain_dict.keys()
         with open(file_name,'w') as f:
             for domain in self.domains:
@@ -243,7 +238,37 @@ class EnumerationSubDomain:
                         f.write(sub_domain + ' , ' + ' , '.join(self.domain_dict[sub_domain]) + '\n')
         self.print_msg('all sub domain write to %s !' % file_name)
 
+    def get_current_time_str(self):
+        return time.strftime("%Y%m%d%H%M%S", time.gmtime(time.time()))
+
+    def dns_query(self, domain, query_type='A'):
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = self.dns_servers
+        answers = None
+        try:
+            answers = resolver.query(domain, query_type)
+        except Exception as e:
+            pass
+        return answers
+
+    def is_wildcard_resovler(self, domain):
+        sub = self.get_current_time_str()
+        not_exist_domain = sub + '.' + domain
+        self.print_msg('generate wildcard domain %s ' % not_exist_domain)
+        answers = self.dns_query(domain)
+        if answers == None:
+            self.is_wildcard = False
+            return False
+        else:
+            self.is_wildcard = True
+            return True
+
     def enumerate(self):
+
+        if self.domain and self.is_wildcard_resovler(self.domain):
+            self.print_msg('domain %s is wildcard resolver !' % self.domain)
+            sys.exit()
+
         start_time = time.time()
         self.do_concurrent_query(self.sub_domains)
         if self.is_loop_query:
@@ -265,6 +290,9 @@ def parse_args():
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
     args = parser.parse_args()
+    if args.domain == None and args.domains_file == None:
+        parser.print_help()
+        sys.exit()
     return args
 
 def main():
@@ -276,6 +304,7 @@ def main():
    dns_servers = args.dns_servers
    out_file = args.out_file
    domains_file = args.domains_file
+
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
                dns_servers=dns_servers, out_file=out_file, domains_file=domains_file)
    try:
