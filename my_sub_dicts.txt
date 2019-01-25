@@ -562,6 +562,7 @@ fps
 fr
 fs
 fsq
+ftn_report
 fudao
 fun
 function

@@ -9,6 +9,8 @@ import dns.resolver
 import sys
 import time
 import requests
+import pytz
+import datetime
 
 from difflib import SequenceMatcher
 from gevent import monkey
@@ -18,7 +20,7 @@ monkey.patch_all()
 class EnumerationSubDomain:
 
     def __init__(self, sub_dicts_file, domain=None, dns_servers=None, coroutine_count=200, is_loop_query=True,
-            out_file=None, domains_file=None, filter_pattern=None):
+            out_file=None, domains_file=None, filter_pattern=None, start_time=None):
         if domain == None and domains_file == None:
             raise RuntimeError('must set domain or domains_file! use -d or -f args!')
 
@@ -49,6 +51,10 @@ class EnumerationSubDomain:
         self.filter_pattern = filter_pattern
         if self.filter_pattern:
             self.filter_pattern = unicode(self.filter_pattern, 'utf-8')
+        self.start_time = start_time
+        if self.start_time:
+            self.check_time_format(self.start_time)
+        self.finish = False
 
         self.last_domains = [domain]
         self.current_domains = []
@@ -56,6 +62,19 @@ class EnumerationSubDomain:
         self.last_query_count = 0
         # current query domain count
         self.current_query_count = 0
+
+    def check_time_format(self,start_time):
+        time_pattern = r'^\d\d:\d\d$'
+        pattern = re.compile(time_pattern)
+        if pattern.match(start_time):
+            hour = int(start_time.split(':')[0])
+            minute = int(start_time.split(':')[1])
+            if (hour >= 0 and hour <=23) and (minute >= 0 and minute <=59):
+                self.print_msg('tasks will start at %s' % start_time)
+            else:
+                raise RuntimeError('start_time format is wrong ! please use 01:02 or 22:30')
+        else:
+            raise RuntimeError('start_time format is wrong ! please use 01:02 or 22:30')
 
     def no_repeat_not_sort(self, lists):
         return list(set(lists))
@@ -246,7 +265,11 @@ class EnumerationSubDomain:
         self.print_msg('all sub domain write to %s !' % file_name)
 
     def get_current_time_str(self):
-        return time.strftime("%Y%m%d%H%M%S", time.gmtime(time.time()))
+        timezone = pytz.timezone('Asia/Shanghai')
+        now = datetime.datetime.now(timezone)
+        time_str = '%.2d%.2d%.2d%.2d%.2d%.2d' % (now.year, now.month, now.day,
+                now.hour, now.minute, now.second)
+        return time_str
 
     def dns_query(self, domain, query_type='A'):
         resolver = dns.resolver.Resolver()
@@ -255,7 +278,7 @@ class EnumerationSubDomain:
         try:
             answers = resolver.query(domain, query_type)
         except Exception as e:
-            answers = None
+            pass
         return answers
 
     def get_html_from_domain(self, domain):
@@ -305,14 +328,12 @@ class EnumerationSubDomain:
 
 
     def query(self, domain):
-        # dns_server = self.dns_servers[random.randint(0,len(self.dns_servers) - 1)]
-        dns_server = self.dns_servers[0]
         answers = self.dns_query(domain, 'A')
         if answers:
             ips = self.get_ip_from_answers(answers)
             if len(ips) >= 1:
                 self.domain_dict[domain] = ips
-                self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
+                self.print_msg('dns_server:%s, domain: %s , ips:%s' % (self.dns_servers[0], domain, str(ips)))
         self.cname_query(domain)
 
     def is_wildcard_resovler(self, domain):
@@ -331,21 +352,36 @@ class EnumerationSubDomain:
             self.is_wildcard = False
             self.print_msg('%s is not wildcard !' % domain)
             return False
-
-    def enumerate(self):
-
-        start_time = time.time()
+    
+    def start(self):
+        self.domain_dict = {}
+        start = time.time()
         for domain in self.domains:
             self.domain = domain
             self.do_concurrent_query(domain, self.sub_dicts)
         if self.is_loop_query:
             self.loop_query()
-
-        end_time = time.time()
-        total_time = int(end_time - start_time)
+        end = time.time()
+        total_time = int(end - start)
         self.print_msg('found %d sub domain ! The time used is %d seconds!' % (len(self.domain_dict), total_time))
         self.write_sub_domains_to_file()
-        return self.domain_dict
+        self.finish = True
+
+    def enumerate(self):
+        self.start()
+
+        if self.start_time:
+            while True:
+                now_time_str = self.get_current_time_str()
+                hour = now_time_str[8:10]
+                minute = now_time_str[10:12]
+                current_time = hour + ':' + minute
+                if current_time == self.start_time and self.finish:
+                    self.print_msg('start now task!!!')
+                    self.start()
+                else:
+                    self.print_msg('wait one minute!')
+                    time.sleep(60)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='A tool that can enumerate subdomains and support enumeration of subdomains above level 3')
@@ -354,6 +390,7 @@ def parse_args():
     parser.add_argument('-o','--out-file',metavar='domain.txt',dest='out_file', type=str, help=u'the file to write the result')
     parser.add_argument('-f','--domains-file',metavar='domains.txt',dest='domains_file', type=str, help=u'Read the domain name to be enumerated from this file')
     parser.add_argument('--filter',metavar=u'xxx shop',dest='filter_pattern', type=str, help=u'filter to skip domain\' html match this string')
+    parser.add_argument('--start-time',metavar=u'21:50',dest='start_time', type=str, help=u'time to start enumerate in every day !')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
@@ -373,9 +410,11 @@ def main():
    out_file = args.out_file
    domains_file = args.domains_file
    filter_pattern = args.filter_pattern
+   start_time = args.start_time
 
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
-               dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern)
+               dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern,
+               start_time=start_time)
    try:
        enum_subdomain.enumerate()
    except KeyboardInterrupt as e:
