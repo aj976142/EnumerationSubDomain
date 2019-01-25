@@ -1,4 +1,4 @@
-# SubDomainBrute
+# EnumerationSubDomain
 子域名枚举工具，使用协程提高枚举速度。   
 由于网上的工具不支持循环枚举子域名，所以有了此工具。  
 

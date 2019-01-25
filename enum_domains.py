@@ -12,7 +12,7 @@ import requests
 
 from difflib import SequenceMatcher
 from gevent import monkey
-from gevent.queue import Queue
+from gevent.queue import LifoQueue
 monkey.patch_all()
 
 class EnumerationSubDomain:
@@ -113,7 +113,7 @@ class EnumerationSubDomain:
         return [fast_dns_server]
 
     def init_tasks_queue(self, sub_domains):
-        tasks_queue = Queue()
+        tasks_queue = LifoQueue()
         for sub_domain in sub_domains:
             tasks_queue.put(sub_domain)
         return tasks_queue
@@ -154,19 +154,8 @@ class EnumerationSubDomain:
             ip = answer.address
             if not pattern.match(ip) and ip not in self.invalid_ip:
                 ips.append(ip)
+        ips.sort()
         return ips
-
-
-    def query(self, domain):
-        # dns_server = self.dns_servers[random.randint(0,len(self.dns_servers) - 1)]
-        dns_server = self.dns_servers[0]
-        answers = self.dns_query(domain)
-        if answers:
-            ips = self.get_ip_from_answers(answers)
-            ips.sort()
-            if len(ips) >= 1:
-                self.domain_dict[domain] = ips
-                self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
 
     def print_err(self, msg):
         sys.stdout.write('[-] ' + str(msg) + '\n')
@@ -179,20 +168,26 @@ class EnumerationSubDomain:
             else:
                 self.query(sub_domain)
 
-    def improve_dicts(self, domains):
+    def add_sub_to_dicts(self, domains, file_name):
         sub_list = []
-        with open('my_sub_dicts.txt','r') as f:
+        with open(file_name,'r') as f:
             sub_list = f.readlines()
         old_num = len(sub_list)
         for domain in domains:
-            sub = domain.split('.')[0]
-            sub_list.append(sub + '\n')
+            subs = domain.split('.')
+            for sub in subs:
+                sub_list.append(sub + '\n')
         sub_list = self.no_repeat_sort(sub_list)
-        with open('my_sub_dicts.txt', 'w') as f:
+        with open(file_name, 'w') as f:
             f.writelines(sub_list)
         new_num = len(sub_list)
         new_num = new_num - old_num
-        self.print_msg('add %d new sub to my_sub_dicts.txt' % new_num)
+        self.print_msg('add %d new sub to %s ' % (new_num, file_name))
+
+    def improve_dicts(self, domains):
+        self.add_sub_to_dicts(domains, 'my_sub_dicts.txt')
+        self.add_sub_to_dicts(domains, 'subdomains.txt')
+
 
     def get_domains_list(self):
         return self.domain_dict.keys()
@@ -260,18 +255,19 @@ class EnumerationSubDomain:
         try:
             answers = resolver.query(domain, query_type)
         except Exception as e:
-            pass
+            answers = None
         return answers
 
     def get_html_from_domain(self, domain):
-        html = None
+        html = ''
         try:
             url = 'http://' + domain
             response = requests.get(url, headers={"Connection": "close"})
             response.encoding = 'utf-8'
             html = response.text
         except Exception as e:
-            self.tasks_queue.put(domain)
+            if self.tasks_queue:
+                self.tasks_queue.put(domain)
         return html
 
     def wildcard_query(self, domain):
@@ -294,6 +290,30 @@ class EnumerationSubDomain:
                         else:
                             self.domain_dict[domain] = ips
                             self.print_msg('dns_server:%s, domain: %s , ips:%s, html len %d' % (self.dns_servers[0],  domain, str(ips), domain_html_len))
+                self.cname_query(domain)
+    
+    def cname_query(self, domain):
+        answers = self.dns_query(domain, 'CNAME')
+        if answers:
+            for answer in answers:
+                cname_domain = answer.to_text()
+                # music.tcdn.qq.com.
+                cname_domain = cname_domain[:-1]
+                if cname_domain.endswith(self.domain) and not self.domain_dict.has_key(cname_domain):
+                    self.print_msg('find cname domain: %s ' % cname_domain)
+                    self.tasks_queue.put(cname_domain)
+
+
+    def query(self, domain):
+        # dns_server = self.dns_servers[random.randint(0,len(self.dns_servers) - 1)]
+        dns_server = self.dns_servers[0]
+        answers = self.dns_query(domain, 'A')
+        if answers:
+            ips = self.get_ip_from_answers(answers)
+            if len(ips) >= 1:
+                self.domain_dict[domain] = ips
+                self.print_msg('dns_server:%s, domain: %s , ips:%s' % (dns_server, domain, str(ips)))
+        self.cname_query(domain)
 
     def is_wildcard_resovler(self, domain):
         sub = self.get_current_time_str()
@@ -301,6 +321,7 @@ class EnumerationSubDomain:
         answers = self.dns_query(not_exist_domain)
         if answers:
             self.is_wildcard = True
+            print vars(answers)
             self.print_msg('%s is wildcard !' % domain)
             self.wildcard_html = self.get_html_from_domain(not_exist_domain)
             self.wildcard_html_len = len(self.wildcard_html)
@@ -315,6 +336,7 @@ class EnumerationSubDomain:
 
         start_time = time.time()
         for domain in self.domains:
+            self.domain = domain
             self.do_concurrent_query(domain, self.sub_dicts)
         if self.is_loop_query:
             self.loop_query()
