@@ -11,6 +11,7 @@ import time
 import requests
 import pytz
 import datetime
+import os
 
 from difflib import SequenceMatcher
 from gevent import monkey
@@ -20,7 +21,7 @@ monkey.patch_all()
 class EnumerationSubDomain:
 
     def __init__(self, sub_dicts_file, domain=None, dns_servers=None, coroutine_count=200, is_loop_query=True,
-            out_file=None, domains_file=None, filter_pattern=None, start_time=None):
+            out_file=None, domains_file=None, filter_pattern=None, start_time=None, monitor_file=None):
         if domain == None and domains_file == None:
             raise RuntimeError('must set domain or domains_file! use -d or -f args!')
 
@@ -51,8 +52,13 @@ class EnumerationSubDomain:
         self.filter_pattern = filter_pattern
         if self.filter_pattern:
             self.filter_pattern = unicode(self.filter_pattern, 'utf-8')
+
         self.start_time = start_time
+        self.monitor_file = monitor_file
+        self.monitor_domains = []
         if self.start_time:
+            if self.monitor_file == None:
+                self.raise_error('please set the -mf args while use --start-time args!')
             self.check_time_format(self.start_time)
         self.finish = False
 
@@ -62,6 +68,9 @@ class EnumerationSubDomain:
         self.last_query_count = 0
         # current query domain count
         self.current_query_count = 0
+
+    def raise_error(self, msg):
+        raise RuntimeError(str(msg))
 
     def check_time_format(self,start_time):
         time_pattern = r'^\d\d:\d\d$'
@@ -83,6 +92,22 @@ class EnumerationSubDomain:
         result = list(set(lists))
         result.sort()
         return result
+
+    def load_domains_from_file(self, file_name):
+        domains = []
+        lines = []
+        with open(file_name, 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            lists = line.split(',')
+            domain = lists[0].strip()
+            domains.append(domain)
+        return domains
+
+
+    def init_monitor(self, monitor_file):
+        monitor_domains = self.load_domains_from_file(monitor_file)
+        return monitor_domains
 
     def load_sub_domains_from_file(self, domains_file):
         if domains_file:
@@ -207,7 +232,6 @@ class EnumerationSubDomain:
         self.add_sub_to_dicts(domains, 'my_sub_dicts.txt')
         self.add_sub_to_dicts(domains, 'subdomains.txt')
 
-
     def get_domains_list(self):
         return self.domain_dict.keys()
 
@@ -247,22 +271,42 @@ class EnumerationSubDomain:
                 self.do_concurrent_query(domain, self.sub_dicts)
 
             self.current_query_count = len(self.domain_dict)
-
-    def write_sub_domains_to_file(self):
-        if self.out_file:
-            file_name = self.out_file
-        else:
-            if self.domain:
-                file_name = self.domain + self.get_current_time_str() + '.txt'
-            else:
-                file_name = self.domains_file + self.get_current_time_str() + '.txt'
-        domain_names = self.domain_dict.keys()
+    
+    def write_domains_result_to_file(self, domain_names, file_name):
         with open(file_name,'w') as f:
             for domain in self.domains:
                 for sub_domain in domain_names:
                     if sub_domain.endswith(domain):
                         f.write(sub_domain + ' , ' + ' , '.join(self.domain_dict[sub_domain]) + '\n')
         self.print_msg('all sub domain write to %s !' % file_name)
+    
+    def append_domains_result_to_file(self, domain_names, file_name):
+        with open(file_name,'a') as f:
+            for domain in self.domains:
+                for sub_domain in domain_names:
+                    if sub_domain.endswith(domain):
+                        f.write(sub_domain + ' , ' + ' , '.join(self.domain_dict[sub_domain]) + '\n')
+        self.print_msg('all %d sub domain append to %s !' % (len(domain_names), file_name))
+
+    def write_sub_domains_to_file(self, file_name):
+        if file_name == None:
+            if self.domains_file:
+                file_name = self.domains_file + self.get_current_time_str() + '.txt'
+            else:
+                file_name = self.domain + self.get_current_time_str() + '.txt'
+        domain_names = self.domain_dict.keys()
+        if os.path.exists(file_name):
+            old_domain_names = self.load_domains_from_file(file_name)
+            old_domain_names_set = set(old_domain_names)
+            new_domains = []
+            for domain in domain_names:
+                if domain not in old_domain_names_set:
+                    new_domains.append(domain)
+            self.append_domains_result_to_file(new_domains, file_name)
+        else:
+            domain_names.sort()
+            self.write_domains_result_to_file(domain_names, file_name)
+
 
     def get_current_time_str(self):
         timezone = pytz.timezone('Asia/Shanghai')
@@ -355,6 +399,10 @@ class EnumerationSubDomain:
     
     def start(self):
         self.domain_dict = {}
+        self.finish = False
+        if self.start_time:
+            self.monitor_domains = self.init_monitor(self.monitor_file)
+        
         start = time.time()
         for domain in self.domains:
             self.domain = domain
@@ -364,7 +412,15 @@ class EnumerationSubDomain:
         end = time.time()
         total_time = int(end - start)
         self.print_msg('found %d sub domain ! The time used is %d seconds!' % (len(self.domain_dict), total_time))
-        self.write_sub_domains_to_file()
+        self.write_sub_domains_to_file(self.out_file)
+
+        if self.start_time:
+            monitor_domains_set = set(self.monitor_domains)
+            found_domains_set = set(self.domain_dict.keys())
+            new_domains = list(found_domains_set - monitor_domains_set)
+            if len(new_domains) >= 1:
+                self.print_msg('find new %d domains: %s' % (len(new_domains), str(new_domains)))
+            self.write_sub_domains_to_file(self.monitor_file)
         self.finish = True
 
     def enumerate(self):
@@ -380,6 +436,7 @@ class EnumerationSubDomain:
                     self.print_msg('start now task!!!')
                     self.start()
                 else:
+                    self.print_msg('now task will start at %s current time is %s' % (self.start_time, current_time))
                     self.print_msg('wait one minute!')
                     time.sleep(60)
 
@@ -391,6 +448,7 @@ def parse_args():
     parser.add_argument('-f','--domains-file',metavar='domains.txt',dest='domains_file', type=str, help=u'Read the domain name to be enumerated from this file')
     parser.add_argument('--filter',metavar=u'xxx shop',dest='filter_pattern', type=str, help=u'filter to skip domain\' html match this string')
     parser.add_argument('--start-time',metavar=u'21:50',dest='start_time', type=str, help=u'time to start enumerate in every day !')
+    parser.add_argument('-mf', '--monitor-file',metavar=u'monitor.txt',dest='monitor_file', type=str, help=u'the file store domains to monitor!')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
@@ -411,15 +469,16 @@ def main():
    domains_file = args.domains_file
    filter_pattern = args.filter_pattern
    start_time = args.start_time
+   monitor_file = args.monitor_file
 
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
                dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern,
-               start_time=start_time)
+               start_time=start_time, monitor_file=monitor_file)
    try:
        enum_subdomain.enumerate()
    except KeyboardInterrupt as e:
        enum_subdomain.print_msg('user abort !')
-       enum_subdomain.write_sub_domains_to_file()
+       enum_subdomain.write_sub_domains_to_file(out_file)
        enum_subdomain.improve_dicts(enum_subdomain.get_domains_list())
 
 if __name__ == '__main__':
