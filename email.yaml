@@ -1,0 +1,8 @@
+# 注意: yaml语法的冒号后面要加个空格
+# Note: A space is added after the colon of the yaml syntax.
+host: smtp.example.com
+port: 25
+username: youremail@example
+password: yourpassword
+sender: youremail@example
+receiver: your_receiver@qq.com

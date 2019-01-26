@@ -12,8 +12,11 @@ import requests
 import pytz
 import datetime
 import os
+import smtplib
+import yaml
 
 from difflib import SequenceMatcher
+from email.mime.text import MIMEText
 from gevent import monkey
 from gevent.queue import LifoQueue
 monkey.patch_all()
@@ -21,7 +24,8 @@ monkey.patch_all()
 class EnumerationSubDomain:
 
     def __init__(self, sub_dicts_file, domain=None, dns_servers=None, coroutine_count=200, is_loop_query=True,
-            out_file=None, domains_file=None, filter_pattern=None, start_time=None, monitor_file=None):
+            out_file=None, domains_file=None, filter_pattern=None, start_time=None, monitor_file=None,
+            send_email=False, loop_dict=None):
         if domain == None and domains_file == None:
             raise RuntimeError('must set domain or domains_file! use -d or -f args!')
 
@@ -54,13 +58,13 @@ class EnumerationSubDomain:
             self.filter_pattern = unicode(self.filter_pattern, 'utf-8')
 
         self.start_time = start_time
+        self.send_email = send_email
         self.monitor_file = monitor_file
         self.monitor_domains = []
         if self.start_time:
             if self.monitor_file == None:
                 self.raise_error('please set the -mf args while use --start-time args!')
             self.check_time_format(self.start_time)
-        self.finish = False
 
         self.last_domains = [domain]
         self.current_domains = []
@@ -229,7 +233,7 @@ class EnumerationSubDomain:
         self.print_msg('add %d new sub to %s ' % (new_num, file_name))
 
     def improve_dicts(self, domains):
-        self.add_sub_to_dicts(domains, 'my_sub_dicts.txt')
+        self.add_sub_to_dicts(domains, 'mydict.txt')
         self.add_sub_to_dicts(domains, 'subdomains.txt')
 
     def get_domains_list(self):
@@ -411,10 +415,44 @@ class EnumerationSubDomain:
             self.is_wildcard = False
             self.print_msg('%s is not wildcard !' % domain)
             return False
-    
+
+    def send_new_domains_to_email(self, content):
+        with open('email.yaml') as f:
+            config = yaml.load(f)
+        host = config['host']
+        port = config['port']
+        username = config['username']
+        password = config['password']
+        sender = config['sender']
+        receiver = config['receiver']
+
+        message = MIMEText(content, 'plain', 'utf-8')
+        message['From'] = sender
+        message['To'] = receiver
+        message['Subject'] = self.get_current_time_str() + 'domain result'
+        try:
+            smtp_client = smtplib.SMTP(host, port)
+            smtp_client.login(username, password)
+            smtp_client.sendmail(sender, receiver, message.as_string())
+            smtp_client.quit()
+            self.print_msg('send email to %s success!' % receiver)
+        except smtplib.SMTPException as e:
+            self.print_msg(e)
+            self.print_msg('Please make sure to fill in the correct configuration file email.yaml')
+
+    def make_email_content(self, new_domains):
+        new_domains_count = len(new_domains)
+        total_domains_count = len(self.get_domains_list())
+        content = 'the result of ' + self.get_current_time_str() + '\n'
+        content += 'enumerate %d domain, found %d new domain\n' % (total_domains_count, new_domains_count)
+        for domain in new_domains:
+            content += '%s , ips: %s' % (domain, str(self.domain_dict[domain]))
+            content += '\n'
+        self.print_msg(content)
+        return content
+
     def start(self):
         self.domain_dict = {}
-        self.finish = False
         if self.start_time:
             self.monitor_domains = self.init_monitor(self.monitor_file)
         
@@ -433,10 +471,11 @@ class EnumerationSubDomain:
             monitor_domains_set = set(self.monitor_domains)
             found_domains_set = set(self.domain_dict.keys())
             new_domains = list(found_domains_set - monitor_domains_set)
-            if len(new_domains) >= 1:
-                self.print_msg('find new %d domains: %s' % (len(new_domains), str(new_domains)))
+            self.print_msg('find new %d domains: %s' % (len(new_domains), str(new_domains)))
+            if self.send_email:
+                content = self.make_email_content(new_domains)
+                self.send_new_domains_to_email(content)
             self.write_sub_domains_to_file(self.monitor_file)
-        self.finish = True
 
     def enumerate(self):
         self.start()
@@ -447,11 +486,11 @@ class EnumerationSubDomain:
                 hour = now_time_str[8:10]
                 minute = now_time_str[10:12]
                 current_time = hour + ':' + minute
-                if current_time == self.start_time and self.finish:
+                if current_time == self.start_time:
                     self.print_msg('start now task!!!')
                     self.start()
                 else:
-                    self.print_msg('now task will start at %s current time is %s' % (self.start_time, current_time))
+                    self.print_msg('new task will start at %s current time is %s' % (self.start_time, current_time))
                     self.print_msg('wait one minute!')
                     time.sleep(60)
 
@@ -464,9 +503,10 @@ def parse_args():
     parser.add_argument('--filter',metavar=u'xxx shop',dest='filter_pattern', type=str, help=u'filter to skip domain\' html match this string')
     parser.add_argument('--start-time',metavar=u'21:50',dest='start_time', type=str, help=u'time to start enumerate in every day !')
     parser.add_argument('-mf', '--monitor-file',metavar=u'monitor.txt',dest='monitor_file', type=str, help=u'the file store domains to monitor!')
-    parser.add_argument('-ld', '--loop-dict',metavar=u'small_dicts.txt',dest='loop_dict', type=str, default='my_sub_dicts.txt', help=u'the file store domains to monitor!')
+    parser.add_argument('-ld', '--loop-dict',metavar=u'small_dicts.txt',dest='loop_dict', type=str, default='mydict.txt', help=u'the file store domains to monitor!')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
+    parser.add_argument('-e','--send-email', dest='send_email', action='store_true', default=False, help=u'Whether to send email, the config in email.yaml')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
     args = parser.parse_args()
     if args.domain == None and args.domains_file == None:
@@ -487,10 +527,11 @@ def main():
    start_time = args.start_time
    monitor_file = args.monitor_file
    loop_dict = args.loop_dict
-
+   send_email = args.send_email
+   print send_email
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
                dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern,
-               start_time=start_time, monitor_file=monitor_file)
+               start_time=start_time, monitor_file=monitor_file, send_email=send_email, loop_dict=loop_dict)
    try:
        enum_subdomain.enumerate()
    except KeyboardInterrupt as e:
