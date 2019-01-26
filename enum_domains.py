@@ -163,7 +163,7 @@ class EnumerationSubDomain:
         return tasks_queue
 
     def print_msg(self, msg):
-        sys.stdout.write('[+] ' + str(msg) + '\n')
+        sys.stdout.write(u'[+] ' + str(msg) + u'\n')
 
     def is_domain(self, domain):
         domain_pattern = r'^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+$'
@@ -248,6 +248,17 @@ class EnumerationSubDomain:
         end_time = time.time()
         total_time = int(end_time - start_time)
         self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(sub_domains), self.coroutine_count, total_time))
+
+        if self.filter_pattern and not self.is_wildcard:
+            domains = self.get_domains_list()
+            self.print_msg(u'start filter domains with pattern')
+            self.print_msg('current domains num is %d' % len(domains))
+            filter_tasks = []
+            for domain in domains:
+                filter_tasks.append(gevent.spawn(self.filter_domain(domain, self.filter_pattern)))
+            gevent.joinall(filter_tasks)
+            self.print_msg('filter finish current domains num is %d' % len(self.get_domains_list()))
+        
         self.improve_dicts(self.get_domains_list())
 
     def loop_query(self):
@@ -329,12 +340,11 @@ class EnumerationSubDomain:
         html = ''
         try:
             url = 'http://' + domain
-            response = requests.get(url, headers={"Connection": "close"})
+            response = requests.get(url, headers={"Connection": "close"}, timeout=3)
             response.encoding = 'utf-8'
             html = response.text
         except Exception as e:
-            if self.tasks_queue:
-                self.tasks_queue.put(domain)
+            pass
         return html
 
     def wildcard_query(self, domain):
@@ -370,6 +380,11 @@ class EnumerationSubDomain:
                     self.print_msg('find cname domain: %s ' % cname_domain)
                     self.tasks_queue.put(cname_domain)
 
+    def filter_domain(self, domain, filter_pattern):
+        domain_html = self.get_html_from_domain(domain)
+        if filter_pattern in domain_html:
+            self.domain_dict.pop(domain)
+            self.print_msg('%s domain match filter pass!' % domain)
 
     def query(self, domain):
         answers = self.dns_query(domain, 'A')
@@ -449,6 +464,7 @@ def parse_args():
     parser.add_argument('--filter',metavar=u'xxx shop',dest='filter_pattern', type=str, help=u'filter to skip domain\' html match this string')
     parser.add_argument('--start-time',metavar=u'21:50',dest='start_time', type=str, help=u'time to start enumerate in every day !')
     parser.add_argument('-mf', '--monitor-file',metavar=u'monitor.txt',dest='monitor_file', type=str, help=u'the file store domains to monitor!')
+    parser.add_argument('-ld', '--loop-dict',metavar=u'small_dicts.txt',dest='loop_dict', type=str, default='my_sub_dicts.txt', help=u'the file store domains to monitor!')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
@@ -470,6 +486,7 @@ def main():
    filter_pattern = args.filter_pattern
    start_time = args.start_time
    monitor_file = args.monitor_file
+   loop_dict = args.loop_dict
 
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
                dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern,

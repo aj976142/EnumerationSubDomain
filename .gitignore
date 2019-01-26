@@ -37,7 +37,6 @@ MANIFEST
 !subdomains.txt
 !my_sub_dicts.txt
 !domains.txt
-!monitor.txt
 # Unit test / coverage reports
 htmlcov/
 .tox/
