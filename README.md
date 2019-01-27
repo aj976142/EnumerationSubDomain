@@ -34,6 +34,9 @@ python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 //泛解析的时候，很多域名是XX旗舰店的，可以用--filter过滤掉这些
 python enum_domains.py -d jd.com -n --filter='旗舰店'
 
+//指定时间开支枚举并发送邮件通知，需要配置email.yaml文件，并在邮箱中开启smtp功能
+python enum_domains.py -d qq.com -n --start-time="02:00" -e
+
 //更多帮助
 python enum_domains.py -h
 
@@ -44,8 +47,6 @@ python enum_domains.py -h
 
 ## 后续功能
 - 支持API搜索域名
-- 支持域名监控，发现新上线资产
-- 发邮件提醒新增域名
 
 ## 参考
 - https://github.com/FeeiCN/ESD

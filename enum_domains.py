@@ -258,8 +258,9 @@ class EnumerationSubDomain:
             self.print_msg(u'start filter domains with pattern')
             self.print_msg('current domains num is %d' % len(domains))
             filter_tasks = []
-            for domain in domains:
-                filter_tasks.append(gevent.spawn(self.filter_domain(domain, self.filter_pattern)))
+            filter_domain_tasks_queue = self.init_tasks_queue(domains)
+            for i in range(self.coroutine_count):
+                filter_tasks.append(gevent.spawn(self.concurrent_filter_domain, filter_domain_tasks_queue))
             gevent.joinall(filter_tasks)
             self.print_msg('filter finish current domains num is %d' % len(self.get_domains_list()))
         
@@ -344,7 +345,7 @@ class EnumerationSubDomain:
         html = ''
         try:
             url = 'http://' + domain
-            response = requests.get(url, headers={"Connection": "close"}, timeout=3)
+            response = requests.get(url, headers={"Connection": "close"}, timeout=2)
             response.encoding = 'utf-8'
             html = response.text
         except Exception as e:
@@ -384,11 +385,19 @@ class EnumerationSubDomain:
                     self.print_msg('find cname domain: %s ' % cname_domain)
                     self.tasks_queue.put(cname_domain)
 
+    def concurrent_filter_domain(self, tasks_queue):
+        while not tasks_queue.empty():
+            domain = tasks_queue.get()
+            self.filter_domain(domain, self.filter_pattern)
+
     def filter_domain(self, domain, filter_pattern):
         domain_html = self.get_html_from_domain(domain)
         if filter_pattern in domain_html:
             self.domain_dict.pop(domain)
             self.print_msg('%s domain match filter pass!' % domain)
+        else:
+            self.print_msg('%s domain not match filter remain!' % domain)
+
 
     def query(self, domain):
         answers = self.dns_query(domain, 'A')
@@ -416,7 +425,7 @@ class EnumerationSubDomain:
             self.print_msg('%s is not wildcard !' % domain)
             return False
 
-    def send_new_domains_to_email(self, content):
+    def send_new_domains_to_email(self, content, send_count=0):
         with open('email.yaml') as f:
             config = yaml.load(f)
         host = config['host']
@@ -431,7 +440,7 @@ class EnumerationSubDomain:
         message['To'] = receiver
         message['Subject'] = self.get_current_time_str() + 'domain result'
         try:
-            smtp_client = smtplib.SMTP(host, port)
+            smtp_client = smtplib.SMTP(host, port, timeout=2)
             smtp_client.login(username, password)
             smtp_client.sendmail(sender, receiver, message.as_string())
             smtp_client.quit()
@@ -439,6 +448,10 @@ class EnumerationSubDomain:
         except smtplib.SMTPException as e:
             self.print_msg(e)
             self.print_msg('Please make sure to fill in the correct configuration file email.yaml')
+        except Exception as e:
+            self.print_msg(e)
+            if send_count <= 5:
+                self.send_new_domains_to_email(content, send_count + 1)
 
     def make_email_content(self, new_domains):
         new_domains_count = len(new_domains)
@@ -528,7 +541,6 @@ def main():
    monitor_file = args.monitor_file
    loop_dict = args.loop_dict
    send_email = args.send_email
-   print send_email
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
                dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern,
                start_time=start_time, monitor_file=monitor_file, send_email=send_email, loop_dict=loop_dict)
