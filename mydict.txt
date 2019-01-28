@@ -601,6 +601,7 @@ fo
 fo3
 fo4
 foe
+follow-soa
 fom
 food
 football
@@ -1557,6 +1558,7 @@ reco
 recommend
 recruit
 recruitment
+red
 reg
 reg2
 register
@@ -1876,6 +1878,7 @@ tptc
 tq
 tr
 trace
+train
 trans
 transfer
 translate
@@ -2091,6 +2094,7 @@ wpd
 wpms
 wpo
 wpzs
+wqs
 wr
 write
 ws
@@ -2136,6 +2140,7 @@ xbwv
 xc
 xd
 xg
+xgimi
 xh
 xhzb
 xhzs

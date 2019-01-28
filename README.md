@@ -10,7 +10,7 @@
 
 ## 安装说明
 ```
-pip install dnspython gevent requests
+pip install dnspython gevent requests pyyaml
 ```
 
 ## 使用说明
