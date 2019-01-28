@@ -31,11 +31,10 @@ python enum_domains.py -n -d qq.com
 //指定协程数和输出文件
 python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 
-//泛解析的时候，很多域名是XX旗舰店的，可以用--filter过滤掉这些
-python enum_domains.py -d jd.com -n --filter='旗舰店'
-
-//指定时间开支枚举并发送邮件通知，需要配置email.yaml文件，并在邮箱中开启smtp功能
-python enum_domains.py -d qq.com -n --start-time="02:00" -e
+//指定时间开支枚举并发送邮件通知，-e需要配置email.yaml文件，和--start-time配合使用
+//并在邮箱中开启smtp功能， 同时使用-mf指定监控文件，监控文件存放要监控的域名
+//每次运行都会把本次获取的域名写入监控文件，下次运行结果会和监控文件的比较，看是否有新域名
+python enum_domains.py -d qq.com -n --start-time="02:00" -e -mf mointor.txt
 
 //更多帮助
 python enum_domains.py -h

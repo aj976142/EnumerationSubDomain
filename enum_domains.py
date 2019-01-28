@@ -172,7 +172,7 @@ class EnumerationSubDomain:
         return tasks_queue
 
     def print_msg(self, msg):
-        sys.stdout.write('[+] ' + msg + '\n')
+        sys.stdout.write('[+] ' + msg.encode('utf-8') + '\n')
 
     def is_domain(self, domain):
         domain_pattern = r'^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+$'
@@ -273,11 +273,12 @@ class EnumerationSubDomain:
         total_time = int(end_time - start_time)
         self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(sub_domains), self.coroutine_count, total_time))
 
-        info_tasks = []
-        info_task_queue = self.init_tasks_queue(self.get_domains_list())
-        for i in range(self.coroutine_count):
-            info_tasks.append(gevent.spawn(self.get_infos, info_task_queue))
-        gevent.joinall(info_tasks)
+        if not self.is_wildcard:
+            info_tasks = []
+            info_task_queue = self.init_tasks_queue(self.get_domains_list())
+            for i in range(self.coroutine_count):
+                info_tasks.append(gevent.spawn(self.get_infos, info_task_queue))
+            gevent.joinall(info_tasks)
 
         self.improve_dicts(self.get_domains_list())
 
@@ -321,6 +322,7 @@ class EnumerationSubDomain:
             for domain in self.domains:
                 for sub_domain in domain_names:
                     if sub_domain.endswith(domain):
+                        sub_domain = sub_domain.encode('utf-8')
                         comma = ' , '
                         title = self.get_title_for_domain(sub_domain)
                         title = title.encode('utf-8')
@@ -406,7 +408,10 @@ class EnumerationSubDomain:
                         domains = self.get_all_domains_from_html(self.domain, domain_html)
                         for domain in domains:
                             self.tasks_queue.put(domain)
-                        self.print_msg('dns_server:%s, domain: %s , ips:%s, title: %s, html len %d' % (self.dns_servers[0],  domain, str(ips), title, domain_html_len))
+                        domain = domain.encode('utf-8')
+                        dns_server = self.dns_servers[0]
+                        dns_server = dns_server.encode('utf-8')
+                        self.print_msg('dns_server:%s, domain: %s , ips:%s, title: %s, html len %d' % (dns_server,  domain, str(ips), title, domain_html_len))
                 self.cname_query(domain)
     
     def cname_query(self, domain):
@@ -435,7 +440,6 @@ class EnumerationSubDomain:
         answers = self.dns_query(not_exist_domain)
         if answers:
             self.is_wildcard = True
-            print vars(answers)
             self.print_msg('%s is wildcard !' % domain)
             self.wildcard_html = self.get_html_from_domain(not_exist_domain)
             self.wildcard_html_len = len(self.wildcard_html)
@@ -477,7 +481,7 @@ class EnumerationSubDomain:
 
     def make_content_for_domain(self, domain):
         content = ''
-        content += '%s , title: %s , ips: ' % (domain,self.get_title_for_domain(domain), str(self.get_ips_for_domain(domain)))
+        content += '%s , title: %s , ips: %s' % (domain,self.get_title_for_domain(domain), str(self.get_ips_for_domain(domain)))
         content += '\n'
         return content
 
@@ -546,7 +550,8 @@ class EnumerationSubDomain:
     def get_infos(self, tasks_queue):
         while not tasks_queue.empty():
             domain = tasks_queue.get()
-            if not self.domain_html_dict.has_key(domain):
+            title = self.get_title_for_domain(domain)
+            if title == '':
                 html = self.get_html_from_domain(domain)
                 title = self.get_title_from_html(html)
                 self.set_title_for_domain(domain, title)
@@ -577,6 +582,8 @@ class EnumerationSubDomain:
             found_domains.sort()
             self.print_msg('find new %d domains: %s' % (len(new_domains), str(new_domains)))
             content = self.make_email_content(new_domains, found_domains)
+            time_str = 'time use is %d second!\n' % total_time 
+            content = time_str + content
             self.send_new_domains_to_email(content)
             self.write_sub_domains_to_file(self.monitor_file)
 
