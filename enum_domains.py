@@ -41,6 +41,7 @@ class EnumerationSubDomain:
             self.dns_servers = [dns_servers]
         # {'qq.com':['111.161.64.48', '111.161.64.40']}
         self.domain_dict = {}
+        self.domain_html_dict = {}
         # Coroutine count
         self.coroutine_count = coroutine_count
         self.is_loop_query = is_loop_query
@@ -167,7 +168,7 @@ class EnumerationSubDomain:
         return tasks_queue
 
     def print_msg(self, msg):
-        sys.stdout.write(u'[+] ' + str(msg) + u'\n')
+        sys.stdout.write('[+] ' + msg + '\n')
 
     def is_domain(self, domain):
         domain_pattern = r'^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+$'
@@ -232,6 +233,15 @@ class EnumerationSubDomain:
         new_num = new_num - old_num
         self.print_msg('add %d new sub to %s ' % (new_num, file_name))
 
+
+    def get_title_from_html(self, html):
+        title = ''
+        title_patten = r'<title>(.+)</title>'
+        result = re.findall(title_patten, html)
+        if len(result) >= 1:
+            title = result[0]
+        return title
+
     def improve_dicts(self, domains):
         self.add_sub_to_dicts(domains, 'mydict.txt')
         self.add_sub_to_dicts(domains, 'subdomains.txt')
@@ -253,17 +263,12 @@ class EnumerationSubDomain:
         total_time = int(end_time - start_time)
         self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(sub_domains), self.coroutine_count, total_time))
 
-        if self.filter_pattern and not self.is_wildcard:
-            domains = self.get_domains_list()
-            self.print_msg(u'start filter domains with pattern')
-            self.print_msg('current domains num is %d' % len(domains))
-            filter_tasks = []
-            filter_domain_tasks_queue = self.init_tasks_queue(domains)
-            for i in range(self.coroutine_count):
-                filter_tasks.append(gevent.spawn(self.concurrent_filter_domain, filter_domain_tasks_queue))
-            gevent.joinall(filter_tasks)
-            self.print_msg('filter finish current domains num is %d' % len(self.get_domains_list()))
-        
+        title_tasks = []
+        title_task_queue = self.init_tasks_queue(self.get_domains_list())
+        for i in range(self.coroutine_count):
+            title_tasks.append(gevent.spawn(self.get_titles, title_task_queue))
+        gevent.joinall(title_tasks)
+
         self.improve_dicts(self.get_domains_list())
 
     def loop_query(self):
@@ -293,15 +298,21 @@ class EnumerationSubDomain:
             for domain in self.domains:
                 for sub_domain in domain_names:
                     if sub_domain.endswith(domain):
-                        f.write(sub_domain + ' , ' + ' , '.join(self.domain_dict[sub_domain]) + '\n')
+                        comma = ' , '
+                        title = self.get_title_for_domain(sub_domain)
+                        line = sub_domain + comma + self.get_title_for_domain(sub_domain) + comma + comma.join(self.get_ips_for_domain(sub_domain)) + '\n'
+                        f.write(line)
         self.print_msg('all sub domain write to %s !' % file_name)
-    
+
     def append_domains_result_to_file(self, domain_names, file_name):
         with open(file_name,'a') as f:
             for domain in self.domains:
                 for sub_domain in domain_names:
                     if sub_domain.endswith(domain):
-                        f.write(sub_domain + ' , ' + ' , '.join(self.domain_dict[sub_domain]) + '\n')
+                        comma = ' , '
+                        title = self.get_title_for_domain(sub_domain)
+                        line = sub_domain + comma + self.get_title_for_domain(sub_domain) + comma + comma.join(self.get_ips_for_domain(sub_domain)) + '\n'
+                        f.write(line)
         self.print_msg('all %d sub domain append to %s !' % (len(domain_names), file_name))
 
     def write_sub_domains_to_file(self, file_name):
@@ -346,8 +357,9 @@ class EnumerationSubDomain:
         try:
             url = 'http://' + domain
             response = requests.get(url, headers={"Connection": "close"}, timeout=2)
-            response.encoding = 'utf-8'
             html = response.text
+            html_format = html.encoding
+            html.decode(html_format).encode('utf-8')
         except Exception as e:
             pass
         return html
@@ -370,7 +382,7 @@ class EnumerationSubDomain:
                         if self.filter_pattern in domain_html:
                             self.print_msg('%s domain match filter pass!' % domain)
                         else:
-                            self.domain_dict[domain] = ips
+                            self.set_ips_for_domain(domain, ips)
                             self.print_msg('dns_server:%s, domain: %s , ips:%s, html len %d' % (self.dns_servers[0],  domain, str(ips), domain_html_len))
                 self.cname_query(domain)
     
@@ -385,26 +397,12 @@ class EnumerationSubDomain:
                     self.print_msg('find cname domain: %s ' % cname_domain)
                     self.tasks_queue.put(cname_domain)
 
-    def concurrent_filter_domain(self, tasks_queue):
-        while not tasks_queue.empty():
-            domain = tasks_queue.get()
-            self.filter_domain(domain, self.filter_pattern)
-
-    def filter_domain(self, domain, filter_pattern):
-        domain_html = self.get_html_from_domain(domain)
-        if filter_pattern in domain_html:
-            self.domain_dict.pop(domain)
-            self.print_msg('%s domain match filter pass!' % domain)
-        else:
-            self.print_msg('%s domain not match filter remain!' % domain)
-
-
     def query(self, domain):
         answers = self.dns_query(domain, 'A')
         if answers:
             ips = self.get_ip_from_answers(answers)
             if len(ips) >= 1:
-                self.domain_dict[domain] = ips
+                self.set_ips_for_domain(domain, ips)
                 self.print_msg('dns_server:%s, domain: %s , ips:%s' % (self.dns_servers[0], domain, str(ips)))
         self.cname_query(domain)
 
@@ -440,29 +438,84 @@ class EnumerationSubDomain:
         message['To'] = receiver
         message['Subject'] = self.get_current_time_str() + 'domain result'
         try:
-            smtp_client = smtplib.SMTP(host, port, timeout=2)
+            smtp_client = smtplib.SMTP_SSL(host, port, timeout=5)
             smtp_client.login(username, password)
             smtp_client.sendmail(sender, receiver, message.as_string())
             smtp_client.quit()
             self.print_msg('send email to %s success!' % receiver)
         except smtplib.SMTPException as e:
-            self.print_msg(e)
+            self.print_msg(str(e))
             self.print_msg('Please make sure to fill in the correct configuration file email.yaml')
+            self.send_new_domains_to_email(content, send_count + 1)
         except Exception as e:
-            self.print_msg(e)
+            self.print_msg(str(e))
             if send_count <= 5:
                 self.send_new_domains_to_email(content, send_count + 1)
 
-    def make_email_content(self, new_domains):
-        new_domains_count = len(new_domains)
-        total_domains_count = len(self.get_domains_list())
-        content = 'the result of ' + self.get_current_time_str() + '\n'
-        content += 'enumerate %d domain, found %d new domain\n' % (total_domains_count, new_domains_count)
-        for domain in new_domains:
-            content += '%s , ips: %s' % (domain, str(self.domain_dict[domain]))
-            content += '\n'
-        self.print_msg(content)
+    def make_content_for_domain(self, domain):
+        content = ''
+        content += '%s, %s' % (domain,self.get_title_for_domain(domain))
+        content += '\n'
+        content += '%s , ips: %s' % (domain, str(self.get_ips_for_domain(domain)))
+        content += '\n'
         return content
+
+    def make_email_content(self, new_domains, found_domains):
+        new_domains_count = len(new_domains)
+        total_domains_count = len(found_domains)
+        content = 'the result of ' + self.get_current_time_str() + '\n'
+        content += 'found %d domain, found %d new domain\n' % (total_domains_count, new_domains_count)
+        for domain in new_domains:
+            content += self.make_content_for_domain(domain)
+        content += 'all domains as follow: \n'
+        for domain in found_domains:
+            content += self.make_content_for_domain(domain)
+        return content
+
+    def set_ips_for_domain(self, domain, ips):
+        '''
+        domain_result = {
+            'ips' : [127.0.0.1]
+            'title' : 'XXX Login'
+        }
+        '''
+        domain_result = {}
+        if self.domain_dict.has_key(domain):
+            domain_result = self.domain_dict[domain]
+        domain_result['ips'] = ips
+        self.domain_dict[domain] = domain_result
+    
+    def set_title_for_domain(self, domain, title):
+        domain_result = {}
+        if self.domain_dict.has_key(domain):
+            domain_result = self.domain_dict[domain]
+        domain_result['title'] = title
+        self.domain_dict[domain] = domain_result
+
+    def get_ips_for_domain(self, domain):
+        if self.domain_dict.has_key(domain):
+            domain_result = self.domain_dict[domain]
+            ips = domain_result['ips']
+            return ips
+        else:
+            return []
+
+    def get_title_for_domain(self, domain):
+        if self.domain_dict.has_key(domain):
+            domain_result = self.domain_dict[domain]
+            title = domain_result['title']
+            return title.encode('utf-8')
+        else:
+            return ''
+
+    def get_titles(self, tasks_queue):
+        while not tasks_queue.empty():
+            domain = tasks_queue.get()
+            if not self.domain_html_dict.has_key(domain):
+                html = self.get_html_from_domain(domain)
+                title = self.get_title_from_html(html)
+                self.set_title_for_domain(domain, title)
+                self.print_msg(u'get %s domain title ok! title:%s' % (domain, title))
 
     def start(self):
         self.domain_dict = {}
@@ -482,12 +535,14 @@ class EnumerationSubDomain:
 
         if self.start_time:
             monitor_domains_set = set(self.monitor_domains)
-            found_domains_set = set(self.domain_dict.keys())
+            found_domains = self.domain_dict.keys()
+            found_domains_set = set(found_domains)
             new_domains = list(found_domains_set - monitor_domains_set)
+            new_domains.sort()
+            found_domains.sort()
             self.print_msg('find new %d domains: %s' % (len(new_domains), str(new_domains)))
-            if self.send_email:
-                content = self.make_email_content(new_domains)
-                self.send_new_domains_to_email(content)
+            content = self.make_email_content(new_domains, found_domains)
+            self.send_new_domains_to_email(content)
             self.write_sub_domains_to_file(self.monitor_file)
 
     def enumerate(self):
