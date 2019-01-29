@@ -1,0 +1,13 @@
+# 注意: yaml语法的冒号后面要加个空格
+# Note: A space is added after the colon of the yaml syntax.
+
+# email SMTP SSL 配置
+email_host: smtp.qq.com
+email_port: 465
+email_username: your@qq.com
+email_password: yourpassword
+email_sender: your@qq.com
+email_receiver: your_receiver@qq.com
+
+# 过滤器配置
+filter: [店, '404', '403']

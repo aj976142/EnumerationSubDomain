@@ -60,6 +60,7 @@ class EnumerationSubDomain:
         self.wildcard_html_len = 0
         self.similarity_rate = 0.8
         self.filter_pattern = filter_pattern
+        self.config = self.load_config()
         if self.filter_pattern:
             self.filter_pattern = unicode(self.filter_pattern, 'utf-8')
 
@@ -78,6 +79,11 @@ class EnumerationSubDomain:
         self.last_query_count = 0
         # current query domain count
         self.current_query_count = 0
+
+    def load_config(self):
+        with open('config.yaml', 'r') as f:
+            config = yaml.load(f)
+        return config
 
     def raise_error(self, msg):
         raise RuntimeError(str(msg))
@@ -453,14 +459,12 @@ class EnumerationSubDomain:
             return False
 
     def send_result_to_email(self, content, send_count=0):
-        with open('email.yaml') as f:
-            config = yaml.load(f)
-        host = config['host']
-        port = config['port']
-        username = config['username']
-        password = config['password']
-        sender = config['sender']
-        receiver = config['receiver']
+        host = self.config['email_host']
+        port = self.config['email_port']
+        username = self.config['email_username']
+        password = self.config['email_password']
+        sender = self.config['email_sender']
+        receiver = self.config['email_receiver']
 
         message = MIMEText(content, 'plain', 'utf-8')
         message['From'] = sender
