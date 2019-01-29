@@ -1,6 +1,6 @@
 # EnumerationSubDomain
 子域名枚举工具，使用协程提高枚举速度。   
-由于网上的工具不支持循环枚举子域名，所以有了此工具。  
+由于网上的工具不支持循环枚举子域名，以及监控子域名，所以有了此工具。  
 
 ## 功能
 - 支持循环枚举 
@@ -15,8 +15,17 @@ pip install dnspython gevent requests pyyaml
 
 ## 使用说明
 ```
-//默认使用循环枚举
+//默认关闭循环枚举
 python enum_domains.py -d qq.com
+
+//使用循环枚举, 由于循环枚举很耗时，在第一次枚举完后，循环枚举默认用mydict.txt作为字典
+python enum_domains.py -l -d qq.com
+
+//指定循环枚举时的字典
+python enum_domains.py -l -ld yourdict.txt -d qq.com
+
+//关闭过滤器，过滤器关键词在config.yaml中配置
+python enum_domains.py -nf -d qq.com
 
 //指定字典
 python enum_domains.py -df you_dict.txt -d qq.com
@@ -27,13 +36,11 @@ python enum_domains.py -t 100 -d qq.com
 //从文件中读取域名进行枚举
 python enum_domains.py -f domains.txt
 
-//关闭循环枚举
-python enum_domains.py -n -d qq.com
 
 //指定协程数和输出文件
 python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 
-//指定时间开支枚举并发送邮件通知，-e需要配置email.yaml文件，和--start-time配合使用
+//指定时间开支枚举并发送邮件通知，-e需要配置config.yaml文件，和--start-time配合使用
 //并在邮箱中开启smtp功能， 同时使用-mf指定监控文件，监控文件存放要监控的域名
 //每次运行都会把本次获取的域名写入监控文件，下次运行结果会和监控文件的比较，看是否有新域名
 python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt

@@ -25,32 +25,35 @@ monkey.patch_all()
 
 class EnumerationSubDomain:
 
-    def __init__(self, sub_dicts_file, domain=None, dns_servers=None, coroutine_count=200, is_loop_query=True,
-            out_file=None, domains_file=None, filter_pattern=None, start_time=None, monitor_file=None,
-            send_email=False, loop_dict=None):
+    def __init__(self, sub_dicts_file, domain=None, dns_server=None, coroutine_count=200, is_loop_query=True,
+            out_file=None, domains_file=None, start_filter=True, start_time=None, monitor_file=None,
+            send_email=False, loop_dict_file=None):
         if domain == None and domains_file == None:
-            raise RuntimeError('must set domain or domains_file! use -d or -f args!')
-
+           self.raise_error('must set domain or domains_file! use -d or -f args!')
+        elif domain and domains_file:
+           self.raise_error('-d and -f can only set one of the parameters') 
+        
+        # current domain to enumerate
         self.domain = domain
+        # domains list to enumerate
         self.domains = []
         if domain:
             self.domains.append(domain)
-
-        self.sub_dicts = self.load_sub_dicts(sub_dicts_file)
-        if dns_servers == None:
-            self.dns_servers = self.auto_select_dns_server()
-        else:
-            self.dns_servers = [dns_servers]
-        # {'qq.com':['111.161.64.48', '111.161.64.40']}
+        self.domains_file = domains_file
+        # sub domain dict 
+        self.sub_dicts = []
+        self.sub_dicts_file = sub_dicts_file
+        self.loop_sub_dicts = []
+        self.loop_dict_file = loop_dict_file
+        self.dns_server = dns_server
+        self.dns_servers = ['114.114.114.114']
+        # the result of enumerate
+        # {'qq.com':['title':'qq','ips':['111.161.64.48', '111.161.64.40']]}
         self.domain_dict = {}
-        self.domain_html_dict = {}
         # Coroutine count
         self.coroutine_count = coroutine_count
         self.is_loop_query = is_loop_query
         self.out_file = out_file
-        self.loop_dict = loop_dict
-        self.domains_file = domains_file
-        self.load_sub_domains_from_file(self.domains_file)
         self.tasks_queue = None
         self.new_found_domain_set = set()
 
@@ -59,10 +62,8 @@ class EnumerationSubDomain:
         self.wildcard_html = ''
         self.wildcard_html_len = 0
         self.similarity_rate = 0.8
-        self.filter_pattern = filter_pattern
-        self.config = self.load_config()
-        if self.filter_pattern:
-            self.filter_pattern = unicode(self.filter_pattern, 'utf-8')
+        self.start_filter = start_filter
+        self.config = None
 
         self.start_time = start_time
         self.send_email = send_email
@@ -73,7 +74,7 @@ class EnumerationSubDomain:
                 self.raise_error('please set the -mf args while use --start-time args!')
             self.check_time_format(self.start_time)
 
-        self.last_domains = [domain]
+        self.last_domains = self.domains
         self.current_domains = []
         # last query domain count
         self.last_query_count = 0
@@ -118,6 +119,7 @@ class EnumerationSubDomain:
             lists = line.split(',')
             domain = lists[0].strip()
             domains.append(domain)
+        domains = self.no_repeat_not_sort(domains)
         return domains
 
 
@@ -125,15 +127,6 @@ class EnumerationSubDomain:
         monitor_domains = self.load_domains_from_file(monitor_file)
         return monitor_domains
 
-    def load_sub_domains_from_file(self, domains_file):
-        if domains_file:
-            with open(domains_file, 'r') as f:
-                domains = f.readlines()
-                for domain in domains:
-                    domain = domain.strip()
-                    self.domains.append(domain)
-            self.domains = self.no_repeat_not_sort(self.domains)
-    
     def load_sub_dicts(self, sub_dicts_file):
         sub_dicts = []
         with open(sub_dicts_file, 'r') as f:
@@ -267,6 +260,15 @@ class EnumerationSubDomain:
     def get_domains_list(self):
         return self.domain_dict.keys()
 
+    def concurrent_get_infos(self):
+        info_tasks = []
+        info_task_queue = self.init_tasks_queue(self.get_domains_list())
+        coroutine_count = self.coroutine_count/2
+        for i in range(coroutine_count):
+            info_tasks.append(gevent.spawn(self.get_infos, info_task_queue))
+        gevent.joinall(info_tasks)
+
+
     def do_concurrent_query(self, domain, sub_dicts):
         self.is_wildcard_resovler(domain) 
 
@@ -282,11 +284,7 @@ class EnumerationSubDomain:
         self.print_msg('enumerate %d sub domain ! use %d coroutine ! The time used is %d seconds!' % (len(sub_domains), self.coroutine_count, total_time))
 
         if not self.is_wildcard:
-            info_tasks = []
-            info_task_queue = self.init_tasks_queue(self.get_domains_list())
-            for i in range(self.coroutine_count):
-                info_tasks.append(gevent.spawn(self.get_infos, info_task_queue))
-            gevent.joinall(info_tasks)
+            self.concurrent_get_infos()
 
         self.improve_dicts(self.get_domains_list())
 
@@ -308,7 +306,10 @@ class EnumerationSubDomain:
             self.last_query_count = self.current_query_count
 
             for domain in query_domains:
-                self.do_concurrent_query(domain, self.sub_dicts)
+                if self.loop_dict_file:
+                    self.do_concurrent_query(domain, self.loop_sub_dicts)
+                else:
+                    self.do_concurrent_query(domain, self.sub_dicts)
 
             self.current_query_count = len(self.domain_dict)
     
@@ -391,12 +392,18 @@ class EnumerationSubDomain:
             if self.tasks_queue:
                 self.tasks_queue.put(domain)
         except Exception as e:
-            self.print_msg('domain %s has error! %s' % (domain, str(e)))
+            pass
+            # self.print_msg('domain %s has error! %s' % (domain, str(e)))
         return html
 
     def wildcard_query(self, domain):
         domain_html = self.get_html_from_domain(domain)
         if domain_html:
+            title = self.get_title_from_html(domain_html)
+            if self.start_filter and self.check_filter(domain_html):
+                self.print_msg('domain %s match filter %s, pass!' % (domain, title))
+                return
+
             domain_html_len = len(domain_html)
             if domain_html_len == self.wildcard_html_len:
                 similarity_rate = 1.0
@@ -410,7 +417,6 @@ class EnumerationSubDomain:
                     ips = self.get_ip_from_answers(answers)
                     if len(ips) >= 1:
                         self.set_ips_for_domain(domain, ips)
-                        title = self.get_title_from_html(domain_html)
                         self.set_title_for_domain(domain, title)
                         # get more domain
                         domains = self.get_all_domains_from_html(self.domain, domain_html)
@@ -446,17 +452,22 @@ class EnumerationSubDomain:
         sub = self.get_current_time_str()
         not_exist_domain = sub + '.' + domain
         answers = self.dns_query(not_exist_domain)
+        result = False
         if answers:
-            self.is_wildcard = True
-            self.print_msg('%s is wildcard !' % domain)
             self.wildcard_html = self.get_html_from_domain(not_exist_domain)
             self.wildcard_html_len = len(self.wildcard_html)
-            self.print_msg('len of wildcard html is %d !' % self.wildcard_html_len) 
-            return True
+            if self.wildcard_html_len == 0:
+                self.is_wildcard = False
+                self.print_msg('%s is not wildcard !' % domain)
+            else:
+                self.is_wildcard = True
+                result = True
+                self.print_msg('%s is wildcard !' % domain)
+                self.print_msg('len of wildcard html is %d !' % self.wildcard_html_len) 
         else:
             self.is_wildcard = False
             self.print_msg('%s is not wildcard !' % domain)
-            return False
+        return result
 
     def send_result_to_email(self, content, send_count=0):
         host = self.config['email_host']
@@ -553,30 +564,70 @@ class EnumerationSubDomain:
             self.print_msg('find new domains in html : %s' % str(new_domains))
         return new_domains
 
+    def check_filter(self, html):
+        title_filters = self.config['title_filters']
+        html_filters = self.config['html_filters']
+        result = False
+        title = self.get_title_from_html(html)
+        for f in title_filters:
+            if f in title:
+                result =  True
+                break
+        for f in html_filters:
+            if f in html:
+                result = True
+                break
+        return result
+
+    def domain_has_title(self, domain):
+        result = False
+        domain_result = self.domain_dict[domain]
+        if domain_result.has_key('title'):
+            result = True
+        return result
+
     def get_infos(self, tasks_queue):
         while not tasks_queue.empty():
             domain = tasks_queue.get()
             title = self.get_title_for_domain(domain)
-            if title == '':
+            if not self.domain_has_title(domain):
                 html = self.get_html_from_domain(domain)
                 title = self.get_title_from_html(html)
-                self.set_title_for_domain(domain, title)
-                self.print_msg('get %s domain title ok! title:%s' % (domain, title))
+                if self.start_filter and self.check_filter(html):
+                    self.print_msg('domain %s match filter %s, pass!' % (domain, title))
+                    self.domain_dict.pop(domain)
+                else:
+                    self.set_title_for_domain(domain, title)
+                    self.print_msg('get %s domain title ok! title:%s' % (domain, title))
 
-    def start(self):
+    def init_query(self):
         self.domain_dict = {}
+        self.sub_dicts = self.load_sub_dicts(self.sub_dicts_file)
+        self.loop_sub_dicts = self.load_sub_dicts(self.loop_dict_file)
+        if self.domains_file:
+            self.domains = self.load_domains_from_file(self.domains_file)
         if self.start_time:
             self.monitor_domains = self.init_monitor(self.monitor_file)
-        
+        if self.dns_server:
+            self.dns_servers = [self.dns_server]
+        else:
+            self.dns_servers = self.auto_select_dns_server()
+        self.config = self.load_config()
+
+    def start(self):
+        self.init_query() 
+
         start = time.time()
         for domain in self.domains:
             self.domain = domain
             self.do_concurrent_query(domain, self.sub_dicts)
         if self.is_loop_query:
             self.loop_query()
+
         end = time.time()
         total_time = int(end - start)
         self.print_msg('found %d sub domain ! The time used is %d seconds!' % (len(self.domain_dict), total_time))
+        
         self.write_sub_domains_to_file(self.out_file)
 
         if self.start_time:
@@ -598,8 +649,6 @@ class EnumerationSubDomain:
             time_str = 'time use is %d second!\n' % total_time 
             content = time_str + content
             self.send_result_to_email(content)
-
-
 
     def enumerate(self):
         self.start()
@@ -624,14 +673,14 @@ def parse_args():
     parser.add_argument('-df','--dict-file',metavar='subnames.txt',dest='dict_file', type=str, default='subdomains.txt', help=u'Subdomain dictionary')
     parser.add_argument('-o','--out-file',metavar='domain.txt',dest='out_file', type=str, help=u'the file to write the result')
     parser.add_argument('-f','--domains-file',metavar='domains.txt',dest='domains_file', type=str, help=u'Read the domain name to be enumerated from this file')
-    parser.add_argument('--filter',metavar=u'xxx shop',dest='filter_pattern', type=str, help=u'filter to skip domain\' html match this string')
+    parser.add_argument('-nf', '--no-filter', dest='start_filter',action='store_false', default=True, help=u'filter to skip domain\' html match this string')
     parser.add_argument('--start-time',metavar=u'21:50',dest='start_time', type=str, help=u'time to start enumerate in every day !')
     parser.add_argument('-mf', '--monitor-file',metavar=u'monitor.txt',dest='monitor_file', type=str, help=u'the file store domains to monitor!')
-    parser.add_argument('-ld', '--loop-dict',metavar=u'small_dicts.txt',dest='loop_dict', type=str, default='mydict.txt', help=u'the file store domains to monitor!')
+    parser.add_argument('-ld', '--loop-dict',metavar=u'small_dicts.txt',dest='loop_dict_file', type=str, default='mydict.txt', help=u'the file store domains to monitor!')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
-    parser.add_argument('-n','--no-loop', dest='is_loop_query', action='store_false', default=True, help=u'Whether to enable circular query')
+    parser.add_argument('-l','--loop', dest='is_loop_query', action='store_true', default=False, help=u'Whether to enable circular query')
     parser.add_argument('-e','--send-email', dest='send_email', action='store_true', default=False, help=u'Whether to send email, the config in email.yaml')
-    parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_servers', type=str, help=u'dns server')
+    parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_server', type=str, help=u'dns server')
     args = parser.parse_args()
     if args.domain == None and args.domains_file == None:
         parser.print_help()
@@ -644,17 +693,17 @@ def main():
    domain = args.domain
    is_loop_query = args.is_loop_query
    coroutine_count = args.coroutine_count
-   dns_servers = args.dns_servers
+   dns_server = args.dns_server
    out_file = args.out_file
    domains_file = args.domains_file
-   filter_pattern = args.filter_pattern
+   start_filter = args.start_filter
    start_time = args.start_time
    monitor_file = args.monitor_file
-   loop_dict = args.loop_dict
+   loop_dict_file = args.loop_dict_file
    send_email = args.send_email
    enum_subdomain = EnumerationSubDomain(sub_dicts_file, domain, coroutine_count=coroutine_count, is_loop_query=is_loop_query,
-               dns_servers=dns_servers, out_file=out_file, domains_file=domains_file, filter_pattern=filter_pattern,
-               start_time=start_time, monitor_file=monitor_file, send_email=send_email, loop_dict=loop_dict)
+               dns_server=dns_server, out_file=out_file, domains_file=domains_file, start_filter=start_filter,
+               start_time=start_time, monitor_file=monitor_file, send_email=send_email, loop_dict_file=loop_dict_file)
    try:
        enum_subdomain.enumerate()
    except KeyboardInterrupt as e:
