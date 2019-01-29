@@ -48,6 +48,7 @@ class EnumerationSubDomain:
         self.coroutine_count = coroutine_count
         self.is_loop_query = is_loop_query
         self.out_file = out_file
+        self.loop_dict = loop_dict
         self.domains_file = domains_file
         self.load_sub_domains_from_file(self.domains_file)
         self.tasks_queue = None
@@ -245,10 +246,11 @@ class EnumerationSubDomain:
 
     def get_title_from_html(self, html):
         title = ''
-        title_patten = r'<title>(.*?)</title>'
+        title_patten = r'<title>(\s*?.*?\s*?)</title>'
         result = re.findall(title_patten, html)
         if len(result) >= 1:
             title = result[0]
+            title = title.strip()
         # title = self.change_utf8(title)
         return title
 
@@ -450,7 +452,7 @@ class EnumerationSubDomain:
             self.print_msg('%s is not wildcard !' % domain)
             return False
 
-    def send_new_domains_to_email(self, content, send_count=0):
+    def send_result_to_email(self, content, send_count=0):
         with open('email.yaml') as f:
             config = yaml.load(f)
         host = config['host']
@@ -473,11 +475,11 @@ class EnumerationSubDomain:
         except smtplib.SMTPException as e:
             self.print_msg(str(e))
             self.print_msg('Please make sure to fill in the correct configuration file email.yaml')
-            self.send_new_domains_to_email(content, send_count + 1)
+            self.send_result_to_email(content, send_count + 1)
         except Exception as e:
             self.print_msg(str(e))
             if send_count <= 5:
-                self.send_new_domains_to_email(content, send_count + 1)
+                self.send_result_to_email(content, send_count + 1)
 
     def make_content_for_domain(self, domain):
         content = ''
@@ -575,7 +577,7 @@ class EnumerationSubDomain:
 
         if self.start_time:
             monitor_domains_set = set(self.monitor_domains)
-            found_domains = self.domain_dict.keys()
+            found_domains = self.get_domains_list()
             found_domains_set = set(found_domains)
             new_domains = list(found_domains_set - monitor_domains_set)
             new_domains.sort()
@@ -584,8 +586,16 @@ class EnumerationSubDomain:
             content = self.make_email_content(new_domains, found_domains)
             time_str = 'time use is %d second!\n' % total_time 
             content = time_str + content
-            self.send_new_domains_to_email(content)
+            self.send_result_to_email(content)
             self.write_sub_domains_to_file(self.monitor_file)
+        elif self.send_email:
+            domains = self.get_domains_list()
+            content = self.make_email_content([], domains)
+            time_str = 'time use is %d second!\n' % total_time 
+            content = time_str + content
+            self.send_result_to_email(content)
+
+
 
     def enumerate(self):
         self.start()
