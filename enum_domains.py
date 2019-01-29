@@ -6,6 +6,7 @@ import gevent
 import re
 import random
 import dns.resolver
+import dns.zone
 import sys
 import time
 import requests
@@ -58,6 +59,7 @@ class EnumerationSubDomain:
         self.new_found_domain_set = set()
 
         self.invalid_ip = ['0.0.0.1']
+        self.is_dns_transfer = False
         self.is_wildcard = False
         self.wildcard_html = ''
         self.wildcard_html_len = 0
@@ -271,9 +273,11 @@ class EnumerationSubDomain:
 
     def do_concurrent_query(self, domain, sub_dicts):
         self.is_wildcard_resovler(domain) 
+        self.dns_transfer(domain)
 
         start_time = time.time()
         sub_domains = self.generate_sub_domains(domain, sub_dicts)
+
         self.tasks_queue = self.init_tasks_queue(sub_domains)
         tasks = []
         for i in range(self.coroutine_count):
@@ -365,6 +369,36 @@ class EnumerationSubDomain:
         time_str = '%.2d%.2d%.2d%.2d%.2d%.2d' % (now.year, now.month, now.day,
                 now.hour, now.minute, now.second)
         return time_str
+
+    def dns_transfer(self, domain):
+        domains = []
+        try:
+            answers = self.dns_query(domain, 'NS')
+            if answers:
+                ns_servers = []
+                for answer in answers:
+                    ns_servers.append(str(answer))
+                self.print_msg('ns_servers: %s' % str(ns_servers))
+                ns_servers_ips = []
+                for ns_server in ns_servers:
+                    a_answers = self.dns_query(ns_server, 'A')
+                    if a_answers:
+                        for a_answer in a_answers:
+                            ns_servers_ips.append(a_answer.address)
+                self.print_msg('ns_servers_ips: %s' % str(ns_servers_ips))
+                for ns_servers_ip in ns_servers_ips:
+                    zones = dns.zone.from_xfr(dns.query.xfr(ns_servers_ip, domain, relativize=False, timeout=2, lifetime=2), check_origin=False)
+                    domain_names = zones.nodes.keys()
+                    for domain_name in domain_names:
+                        domain_name = str(domain_name)
+                        domain_name = domain_name[:-1]
+                        domains.append(domain_name)
+                self.print_msg('find dns transfer domains: %s !' % str(domains))
+        except Exception as e:
+            self.print_msg(str(e))
+        if len(domains) > 0:
+            self.is_dns_transfer = True
+        return domains
 
     def dns_query(self, domain, query_type='A'):
         resolver = dns.resolver.Resolver()
@@ -639,6 +673,9 @@ class EnumerationSubDomain:
             found_domains.sort()
             self.print_msg('find new %d domains: %s' % (len(new_domains), str(new_domains)))
             content = self.make_email_content(new_domains, found_domains)
+            if self.is_dns_transfer:
+                dns_transfer_str = 'domain has dns transfer vuln!\n'
+                content = dns_transfer_str + content
             time_str = 'time use is %d second!\n' % total_time 
             content = time_str + content
             self.send_result_to_email(content)
@@ -646,6 +683,9 @@ class EnumerationSubDomain:
         elif self.send_email:
             domains = self.get_domains_list()
             content = self.make_email_content([], domains)
+            if self.is_dns_transfer:
+                dns_transfer_str = 'domain has dns transfer vuln!\n'
+                content = dns_transfer_str + content
             time_str = 'time use is %d second!\n' % total_time 
             content = time_str + content
             self.send_result_to_email(content)
