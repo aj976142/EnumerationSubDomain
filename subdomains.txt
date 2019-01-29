@@ -2797,6 +2797,7 @@
 2fcd
 2fnandu
 2fr
+2fwl
 2g
 2h
 2iiii-zzhk
@@ -21060,6 +21061,7 @@ ipa
 ipad
 ipadian
 ipai
+ipaimai
 ipay
 ipayables
 ipc
@@ -21503,6 +21505,7 @@ jd
 jd-fltrp
 jda
 jdair
+jdata
 jdb
 jdbose
 jdbrain
@@ -21512,6 +21515,7 @@ jdcreative
 jdcs
 jdcy
 jdd
+jddc
 jdesigner
 jdf
 jdfg
@@ -28870,6 +28874,7 @@ pco
 pcor
 pcp
 pcpi
+pcprinting
 pcprompt
 pcreditprod
 pcs
@@ -30484,6 +30489,7 @@ qranywhere
 qravity
 qrcode
 qresolve
+qrimg
 qrknet
 qro
 qrs
@@ -32748,6 +32754,7 @@ shinsv
 shipev
 shipin
 shiping
+shipingou
 shipirukh
 ships
 shiquan
