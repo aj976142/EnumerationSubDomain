@@ -19,6 +19,7 @@ import chardet
 
 from difflib import SequenceMatcher
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from urllib3.exceptions import NewConnectionError
 from gevent import monkey
 from gevent.queue import LifoQueue
@@ -86,7 +87,6 @@ class EnumerationSubDomain:
     def load_config(self):
         with open('config.yaml', 'r') as f:
             config = yaml.load(f)
-        self.print_msg(str(config))
         return config
 
     def raise_error(self, msg):
@@ -296,7 +296,6 @@ class EnumerationSubDomain:
 
         if not self.is_wildcard:
             self.concurrent_get_infos()
-
         self.improve_dicts(self.get_domains_list())
 
     def loop_query(self):
@@ -525,10 +524,18 @@ class EnumerationSubDomain:
         sender = self.config['email_sender']
         receiver = self.config['email_receiver']
 
-        message = MIMEText(content, 'plain', 'utf-8')
+        summary = 'the result of ' + self.get_current_time_str()
+        message = MIMEMultipart()
         message['From'] = sender
         message['To'] = receiver
-        message['Subject'] = 'the ' + self.get_current_time_str() + ' domain result'
+        message['Subject'] = summary
+        message.attach(MIMEText(summary, 'plain', 'utf-8'))
+        attach = MIMEText(content, 'base64', 'utf-8')
+        attach["Content-Type"] = 'application/octet-stream'
+        filename = self.get_current_time_str() + '.txt'
+        attach['Content-Disposition'] =  'attachment; filename=' + filename
+        message.attach(attach)
+      
         try:
             smtp_client = smtplib.SMTP_SSL(host, port, timeout=5)
             smtp_client.login(username, password)
