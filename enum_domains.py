@@ -721,8 +721,6 @@ class EnumerationSubDomain:
             self.send_result_to_email(content)
 
     def enumerate(self):
-        self.start()
-
         if self.start_time:
             while True:
                 now_time_str = self.get_current_time_str()
@@ -736,6 +734,8 @@ class EnumerationSubDomain:
                     self.print_msg('new task will start at %s current time is %s' % (self.start_time, current_time))
                     self.print_msg('wait one minute!')
                     time.sleep(60)
+        else:
+            self.start()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='A tool that can enumerate subdomains and support enumeration of subdomains above level 3')
