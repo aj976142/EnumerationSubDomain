@@ -24,6 +24,8 @@ from urllib3.exceptions import NewConnectionError
 from gevent import monkey
 from gevent.queue import LifoQueue
 monkey.patch_all()
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 class EnumerationSubDomain:
 
@@ -166,6 +168,8 @@ class EnumerationSubDomain:
                fast_dns_server = dns_server
                fast_dns_server_time = total_time
         self.print_msg('dns_server: %s is fast !' % fast_dns_server)
+        if fast_dns_server == '':
+            fast_dns_server = '114.114.114.114'
         return [fast_dns_server]
 
     def init_tasks_queue(self, sub_domains):

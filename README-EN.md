@@ -11,10 +11,13 @@ This tool was developed because online tools do not support circular enumeration
 
 ## Install
 ```
-pip install dnspython gevent requests pyyaml
+pip install dnspython gevent requests pyyaml pytz
 ```
 
 ## Usage
+It is recommended to use this tool under linux, such as ubuntu, kali linux
+windows support for coroutine is not well
+
 Mail server configuration and filtering keywords should be configured in config.yaml
 
 
