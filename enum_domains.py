@@ -177,7 +177,9 @@ class EnumerationSubDomain:
         return tasks_queue
 
     def print_msg(self, msg):
-        sys.stdout.write('[+] ' + msg.encode('utf-8') + '\n')
+        if sys.platform == 'win32':
+            msg = msg.decode('utf-8').encode('gb2312', 'ignore')
+        sys.stdout.write('[+] ' + msg + '\n')
 
     def is_domain(self, domain):
         domain_pattern = r'^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+$'
@@ -246,7 +248,9 @@ class EnumerationSubDomain:
     def change_utf8(self, text):
         result = chardet.detect(text)
         charset = result['encoding']
-        text = text.encode('utf-8')
+        if charset == None:
+            charset = 'utf-8'
+        text = text.decode(charset).encode('utf-8')
         return text
 
     def get_title_from_html(self, html):
@@ -256,7 +260,6 @@ class EnumerationSubDomain:
         if len(result) >= 1:
             title = result[0]
             title = title.strip()
-        # title = self.change_utf8(title)
         return title
 
     def improve_dicts(self, domains):
@@ -333,7 +336,6 @@ class EnumerationSubDomain:
                         sub_domain = sub_domain.encode('utf-8')
                         comma = ' , '
                         title = self.get_title_for_domain(sub_domain)
-                        title = title.encode('utf-8')
                         line = sub_domain + comma + title + comma + comma.join(self.get_ips_for_domain(sub_domain)) + '\n'
                         f.write(line)
         self.print_msg('all sub domain write to %s !' % file_name)
@@ -431,12 +433,13 @@ class EnumerationSubDomain:
             url = 'http://' + domain
             response = requests.get(url, timeout=3)
             html = response.content
-            charset = chardet.detect(html)
-            charset = charset['encoding']
-            # self.print_msg('domain %s charset is %s, check charset is %s' % (domain, response.encoding, charset))
+            result = chardet.detect(html)
+            charset = result['encoding']
+            if charset == None:
+                charset = 'utf-8'
             response.encoding = charset
             html = response.text
-            html.encode('utf-8')
+            html = html.encode('utf-8')
         except NewConnectionError as e:
             if self.tasks_queue:
                 self.tasks_queue.put(domain)
@@ -627,6 +630,7 @@ class EnumerationSubDomain:
         html_filters = self.config['html_filters']
         result = False
         title = self.get_title_from_html(html)
+        title = title.decode('utf-8')
         if len(title_filters) > 0:
             for f in title_filters:
                 if f in title:
