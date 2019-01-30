@@ -86,6 +86,7 @@ class EnumerationSubDomain:
     def load_config(self):
         with open('config.yaml', 'r') as f:
             config = yaml.load(f)
+        self.print_msg(str(config))
         return config
 
     def raise_error(self, msg):
@@ -192,7 +193,8 @@ class EnumerationSubDomain:
             self.print_msg('load %d sub domain dicts ...' % len(sub_dicts))
             sub_domains = []
             if not self.is_domain(domain):
-                raise RuntimeError('%s not a domain' % domain)
+                self.print_msg('%s not a domain' % domain)
+                return []
             sub_domains.append(domain)
             for sub in sub_dicts:
                 sub_domain = sub + '.' + domain
@@ -265,7 +267,9 @@ class EnumerationSubDomain:
     def concurrent_get_infos(self):
         info_tasks = []
         info_task_queue = self.init_tasks_queue(self.get_domains_list())
-        coroutine_count = self.coroutine_count/2
+        coroutine_count = self.coroutine_count/4
+        if coroutine_count < 20:
+            coroutine_count = 20
         for i in range(coroutine_count):
             info_tasks.append(gevent.spawn(self.get_infos, info_task_queue))
         gevent.joinall(info_tasks)
@@ -390,13 +394,17 @@ class EnumerationSubDomain:
                             ns_servers_ips.append(a_answer.address)
                 self.print_msg('ns_servers_ips: %s' % str(ns_servers_ips))
                 for ns_servers_ip in ns_servers_ips:
-                    zones = dns.zone.from_xfr(dns.query.xfr(ns_servers_ip, domain, relativize=False, timeout=2, lifetime=2), check_origin=False)
-                    domain_names = zones.nodes.keys()
-                    for domain_name in domain_names:
-                        domain_name = str(domain_name)
-                        domain_name = domain_name[:-1]
-                        domains.append(domain_name)
-                self.print_msg('find dns transfer domains: %s !' % str(domains))
+                    try:
+                        zones = dns.zone.from_xfr(dns.query.xfr(ns_servers_ip, domain, relativize=False, timeout=2, lifetime=2), check_origin=False)
+                        domain_names = zones.nodes.keys()
+                        for domain_name in domain_names:
+                            domain_name = str(domain_name)
+                            domain_name = domain_name[:-1]
+                            domains.append(domain_name)
+                    except Exception as e:
+                        self.print_msg(str(e))
+                if len(domains) > 0:
+                    self.print_msg('find dns transfer domains: %s !' % str(domains))
         except Exception as e:
             self.print_msg(str(e))
         if len(domains) > 0:
@@ -609,14 +617,16 @@ class EnumerationSubDomain:
         html_filters = self.config['html_filters']
         result = False
         title = self.get_title_from_html(html)
-        for f in title_filters:
-            if f in title:
-                result =  True
-                break
-        for f in html_filters:
-            if f in html:
-                result = True
-                break
+        if len(title_filters) > 0:
+            for f in title_filters:
+                if f in title:
+                    result =  True
+                    break
+        if len(html_filters) > 0:
+            for f in html_filters:
+                if f in html:
+                    result = True
+                    break
         return result
 
     def domain_has_title(self, domain):

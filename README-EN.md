@@ -57,6 +57,9 @@ python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 // The result will be compared with the monitoring file to determine if there is a new domain name.
 python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt
 
+// Linux can use nohup to support background running, windows do not close cmd window
+nohup python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt &
+
 // Non-monitoring mode to send email notification results
 python enum_domains.py -d qq.com -n -e -mf qq_mointor.txt
 

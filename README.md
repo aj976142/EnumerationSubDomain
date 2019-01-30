@@ -56,6 +56,9 @@ python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 //每次运行都会把本次获取的域名写入监控文件，下次运行结果会和监控文件的比较，看是否有新域名
 python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt
 
+//linux可以使用nohup来支持后台运行, windows则不要关闭cmd窗口
+nohup python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt &
+
 //单独非监控模式发邮件通知结果
 python enum_domains.py -d qq.com -n -e -mf qq_mointor.txt
 
