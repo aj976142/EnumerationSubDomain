@@ -86,7 +86,6 @@ class EnumerationSubDomain:
     def load_config(self):
         with open('config.yaml', 'r') as f:
             config = yaml.load(f)
-        self.print_msg(str(config))
         return config
 
     def raise_error(self, msg):
