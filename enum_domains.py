@@ -273,10 +273,13 @@ class EnumerationSubDomain:
 
     def do_concurrent_query(self, domain, sub_dicts):
         self.is_wildcard_resovler(domain) 
-        self.dns_transfer(domain)
+        transfer_domains = self.dns_transfer(domain)
 
         start_time = time.time()
         sub_domains = self.generate_sub_domains(domain, sub_dicts)
+        if len(transfer_domains) > 0:
+            sub_domains.extend(transfer_domains)
+            sub_domains = self.no_repeat_not_sort(sub_domains)
 
         self.tasks_queue = self.init_tasks_queue(sub_domains)
         tasks = []
@@ -398,6 +401,9 @@ class EnumerationSubDomain:
             self.print_msg(str(e))
         if len(domains) > 0:
             self.is_dns_transfer = True
+            self.print_msg('domain vuln to dns transfer!')
+        else:
+            self.print_msg('domain not vuln to dns transfer!')
         return domains
 
     def dns_query(self, domain, query_type='A'):
