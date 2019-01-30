@@ -24,8 +24,6 @@ from urllib3.exceptions import NewConnectionError
 from gevent import monkey
 from gevent.queue import LifoQueue
 monkey.patch_all()
-reload(sys)
-sys.setdefaultencoding('utf-8')
 
 class EnumerationSubDomain:
 
@@ -549,7 +547,8 @@ class EnumerationSubDomain:
         except smtplib.SMTPException as e:
             self.print_msg(str(e))
             self.print_msg('Please make sure to fill in the correct configuration file email.yaml')
-            self.send_result_to_email(content, send_count + 1)
+            if send_count <= 5:
+                self.send_result_to_email(content, send_count + 1)
         except Exception as e:
             self.print_msg(str(e))
             if send_count <= 5:
