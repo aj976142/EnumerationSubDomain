@@ -52,7 +52,6 @@ python enum_domains.py -t 800 -d qq.com -o qq.com.txt
 
 // Specify the time to start enumeration and send an email notification
 // -e needs to configure the config.yaml file
-// --start-time配合使用
 // You need to enable the smtp function in the mailbox, and use -mf to specify the monitoring file. The monitoring file stores the domain name to be monitored.
 // The domain name obtained this time will be written into the monitoring file every time.
 // The result will be compared with the monitoring file to determine if there is a new domain name.

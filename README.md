@@ -1,4 +1,7 @@
 # EnumerationSubDomain
+
+[English README](/README-EN.md)
+
 由于网上的工具不支持循环枚举子域名，以及监控新子域名，所以开发了此工具。  
 
 ## 功能
