@@ -15,8 +15,8 @@ pip install dnspython gevent requests pyyaml pytz
 ```
 
 ## Usage
-It is recommended to use this tool under linux, such as ubuntu, kali linux
-windows support for coroutine is not well
+It is recommended to use this tool under linux, such as ubuntu, kali linux  
+Running under windows will be slower than linux  
 
 Mail server configuration and filtering keywords should be configured in config.yaml
 

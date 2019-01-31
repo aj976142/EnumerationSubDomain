@@ -18,8 +18,8 @@ pip install dnspython gevent requests pyyaml pytz
 ```
 
 ## 使用说明
-建议在linux下面使用该工具， 如ubuntu, kali linux
-windows对协程的支持不是很好
+建议在linux下面使用该工具， 如ubuntu, kali linux  
+windows下运行会比linux慢
 
 邮件服务器配置和过滤关键词请在config.yaml中配置 
 
