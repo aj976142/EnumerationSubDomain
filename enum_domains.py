@@ -348,7 +348,6 @@ class EnumerationSubDomain:
                         sub_domain = sub_domain.encode('utf-8')
                         comma = ' , '
                         title = self.get_title_for_domain(sub_domain)
-                        title = title.encode('utf-8')
                         line = sub_domain + comma + title + comma + comma.join(self.get_ips_for_domain(sub_domain)) + '\n'
                         f.write(line)
         self.print_msg('all %d sub domain append to %s !' % (len(domain_names), file_name))
