@@ -748,7 +748,7 @@ def parse_args():
     parser.add_argument('-ld', '--loop-dict',metavar=u'small_dicts.txt',dest='loop_dict_file', type=str, default='mydict.txt', help=u'the file store domains to monitor!')
     parser.add_argument('-t','--thread',metavar='200',dest='coroutine_count', type=int, default=200, help=u'the count of thread')
     parser.add_argument('-l','--loop', dest='is_loop_query', action='store_true', default=False, help=u'Whether to enable circular query')
-    parser.add_argument('-e','--send-email', dest='send_email', action='store_true', default=False, help=u'Whether to send email, the config in email.yaml')
+    parser.add_argument('-e','--send-email', dest='send_email', action='store_true', default=False, help=u'Whether to send email, the config in config.yaml')
     parser.add_argument('--dns-server', metavar='8.8.8.8', dest='dns_server', type=str, help=u'dns server')
     args = parser.parse_args()
     if args.domain == None and args.domains_file == None:
