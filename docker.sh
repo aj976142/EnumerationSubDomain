@@ -1,5 +1,5 @@
 apt update
-apt install docker.io docker -y
+apt install docker-ce -y
 docker build -t enum_domain .
 PWD=$(pwd)
-docker run  -idt  --name enum_domain --restart=always -v $PWD:/root/ enum_domain
+docker run -d --name enum_domain --restart=always -v $PWD:/root/ enum_domain sh /root/start.sh

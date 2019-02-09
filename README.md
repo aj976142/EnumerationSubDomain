@@ -65,8 +65,15 @@ nohup python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt &
 //单独非监控模式发邮件通知结果
 python enum_domains.py -d qq.com -n -e -mf qq_mointor.txt
 
+
+//使用docker构建, 其中start.sh为docker容器启动时执行的脚本
+//可以自行修改start.sh中的命令
+chmod 755 docker.sh
+sudo ./docker.sh
+
 //更多帮助
 python enum_domains.py -h
+
 
 ```
 ## 注意事项

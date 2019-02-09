@@ -66,6 +66,11 @@ nohup python enum_domains.py -d qq.com --start-time="02:00" -e -mf mointor.txt &
 // Non-monitoring mode to send email notification results
 python enum_domains.py -d qq.com -n -e -mf qq_mointor.txt
 
+//Build with docker, where start.sh is the script that is executed when the docker container starts
+//You can modify the commands in start.sh by yourself.
+chmod 755 docker.sh
+sudo ./docker.sh
+
 // more help
 python enum_domains.py -h
 
