@@ -127,6 +127,9 @@ class EnumerationSubDomain:
 
 
     def init_monitor(self, monitor_file):
+        if not os.path.exists(monitor_file):
+            with open(monitor_file, 'w') as f:
+                f.write(self.domain + '\n')
         monitor_domains = self.load_domains_from_file(monitor_file)
         return monitor_domains
 
@@ -358,7 +361,7 @@ class EnumerationSubDomain:
                 file_name = self.domains_file + self.get_current_time_str() + '.txt'
             else:
                 file_name = self.domain + self.get_current_time_str() + '.txt'
-        domain_names = self.domain_dict.keys()
+        domain_names = self.no_repeat_sort(self.get_domains_list())
         if os.path.exists(file_name):
             old_domain_names = self.load_domains_from_file(file_name)
             old_domain_names_set = set(old_domain_names)
@@ -368,7 +371,6 @@ class EnumerationSubDomain:
                     new_domains.append(domain)
             self.append_domains_result_to_file(new_domains, file_name)
         else:
-            domain_names.sort()
             self.write_domains_result_to_file(domain_names, file_name)
 
 
