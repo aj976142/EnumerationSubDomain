@@ -632,6 +632,7 @@ class EnumerationSubDomain:
         result = False
         title = self.get_title_from_html(html)
         title = title.decode('utf-8')
+        html = html.decode('utf-8')
         if len(title_filters) > 0:
             for f in title_filters:
                 if f in title:
