@@ -1,3 +1,3 @@
-FROM ubuntu
+FROM jfloff/alpine-python
 
-RUN apt update && apt install python python-pip -y && rm -rf /var/lib/apt/lists/* && pip install dnspython gevent requests pyyaml pytz
+RUN pip install dnspython gevent requests pyyaml pytz
