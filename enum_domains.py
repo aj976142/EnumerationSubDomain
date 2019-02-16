@@ -488,8 +488,9 @@ class EnumerationSubDomain:
                 cname_domain = answer.to_text()
                 # music.tcdn.qq.com.
                 cname_domain = cname_domain[:-1]
-                if cname_domain.endswith(self.domain) and not self.domain_dict.has_key(cname_domain):
+                if cname_domain.endswith(self.domain) and not self.domain_dict.has_key(cname_domain) and cname_domain not in self.new_found_domain_set:
                     self.print_msg('find cname domain: %s ' % cname_domain)
+                    self.new_found_domain_set.add(cname_domain)
                     self.tasks_queue.put(cname_domain)
 
     def query(self, domain):
