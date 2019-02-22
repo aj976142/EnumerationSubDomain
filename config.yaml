@@ -5,11 +5,27 @@
 email_host: smtp.qq.com
 email_port: 465
 email_username: your@qq.com
-email_password: yourpassword
+email_password: your_password
 email_sender: your@qq.com
-email_receiver: your_receiver@qq.com
+email_receiver: your@qq.com
 
-# 过滤器配置
-title_filters: [旗舰店, 专营店, 专卖店, 自营专区, 馆, 用品,'404', '403']
+title_filters: 
+- '404'
+- '403'
+- '400'
+- '502'
+- '504'
+- '500'
+- Welcome to nginx!
+- 旗舰店
+- 专营店
+- 专卖店
+- 自营专区
+- 馆
+- 用品
+- 首页-.*-淘宝网
+- 店铺
+- 不存在
 
-html_filters: ['was not found on this server']
+html_filters: 
+- was not found on this server
