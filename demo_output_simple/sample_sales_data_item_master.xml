@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Stock Items</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+        <TALLYMESSAGE>
+          <STOCKITEM REMOTEID="Easy Ltd" ACTION="Create">
+            <NAME>Easy Ltd</NAME>
+            <PARENT>Primary</PARENT>
+            <CATEGORY>Primary</CATEGORY>
+            <TAXCLASSIFICATIONNAME />
+            <BASEUNITS>Nos</BASEUNITS>
+            <ADDITIONALUNITS>Nos</ADDITIONALUNITS>
+            <GSTAPPLICABLE>Applicable</GSTAPPLICABLE>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE>
+          <STOCKITEM REMOTEID="Simple Corp" ACTION="Create">
+            <NAME>Simple Corp</NAME>
+            <PARENT>Primary</PARENT>
+            <CATEGORY>Primary</CATEGORY>
+            <TAXCLASSIFICATIONNAME />
+            <BASEUNITS>Nos</BASEUNITS>
+            <ADDITIONALUNITS>Nos</ADDITIONALUNITS>
+            <GSTAPPLICABLE>Applicable</GSTAPPLICABLE>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>

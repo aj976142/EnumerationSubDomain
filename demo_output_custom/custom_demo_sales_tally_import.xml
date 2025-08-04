@@ -10,92 +10,63 @@
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE>
-          <VOUCHER REMOTEID="INV001" VCHTYPE="Sales" ACTION="Create">
-            <DATE>20240115</DATE>
+          <VOUCHER REMOTEID="CUSTOM001" VCHTYPE="Sales" ACTION="Create">
+            <DATE>20240125</DATE>
             <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
-            <VOUCHERNUMBER>INV001</VOUCHERNUMBER>
-            <PARTYNAME>ABC Company</PARTYNAME>
-            <NARRATION>Sample invoice 1</NARRATION>
+            <VOUCHERNUMBER>CUSTOM001</VOUCHERNUMBER>
+            <PARTYNAME>Demo Customer Ltd</PARTYNAME>
+            <NARRATION>Custom format demo</NARRATION>
             <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>ABC Company</LEDGERNAME>
+              <LEDGERNAME>Demo Customer Ltd</LEDGERNAME>
               <GSTCLASS />
               <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-              <AMOUNT>11800.0</AMOUNT>
+              <AMOUNT>25000.0</AMOUNT>
             </ALLLEDGERENTRIES.LIST>
             <ALLLEDGERENTRIES.LIST>
               <LEDGERNAME>Sales</LEDGERNAME>
               <GSTCLASS />
               <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <AMOUNT>-11800.0</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>
-            <ALLINVENTORYENTRIES.LIST>
-              <STOCKITEMNAME>10000</STOCKITEMNAME>
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <ACTUALQTY>-0 Nos</ACTUALQTY>
-              <BILLEDQTY>-0 Nos</BILLEDQTY>
-              <AMOUNT>-0</AMOUNT>
-              <RATE>0/Nos</RATE>
-            </ALLINVENTORYENTRIES.LIST>
-            <ALLINVENTORYENTRIES.LIST>
-              <STOCKITEMNAME>1000.0</STOCKITEMNAME>
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <ACTUALQTY>-0 Nos</ACTUALQTY>
-              <BILLEDQTY>-0 Nos</BILLEDQTY>
-              <AMOUNT>-0</AMOUNT>
-              <RATE>0/Nos</RATE>
-            </ALLINVENTORYENTRIES.LIST>
-          </VOUCHER>
-        </TALLYMESSAGE>
-        <TALLYMESSAGE>
-          <VOUCHER REMOTEID="INV002" VCHTYPE="Sales" ACTION="Create">
-            <DATE>20240116</DATE>
-            <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
-            <VOUCHERNUMBER>INV002</VOUCHERNUMBER>
-            <PARTYNAME>XYZ Ltd</PARTYNAME>
-            <NARRATION>Sample invoice 2</NARRATION>
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>XYZ Ltd</LEDGERNAME>
-              <GSTCLASS />
-              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-              <AMOUNT>5900.0</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>Sales</LEDGERNAME>
-              <GSTCLASS />
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <AMOUNT>-5900.0</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>
-            <ALLINVENTORYENTRIES.LIST>
-              <STOCKITEMNAME>5000</STOCKITEMNAME>
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <ACTUALQTY>-0 Nos</ACTUALQTY>
-              <BILLEDQTY>-0 Nos</BILLEDQTY>
-              <AMOUNT>-0</AMOUNT>
-              <RATE>0/Nos</RATE>
-            </ALLINVENTORYENTRIES.LIST>
-          </VOUCHER>
-        </TALLYMESSAGE>
-        <TALLYMESSAGE>
-          <VOUCHER REMOTEID="INV003" VCHTYPE="Sales" ACTION="Create">
-            <DATE>20240117</DATE>
-            <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
-            <VOUCHERNUMBER>INV003</VOUCHERNUMBER>
-            <PARTYNAME>PQR Industries</PARTYNAME>
-            <NARRATION>Bulk order</NARRATION>
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>PQR Industries</LEDGERNAME>
-              <GSTCLASS />
-              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-              <AMOUNT>23600.0</AMOUNT>
-            </ALLLEDGERENTRIES.LIST>
-            <ALLLEDGERENTRIES.LIST>
-              <LEDGERNAME>Sales</LEDGERNAME>
-              <GSTCLASS />
-              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-              <AMOUNT>-23600.0</AMOUNT>
+              <AMOUNT>-25000.0</AMOUNT>
             </ALLLEDGERENTRIES.LIST>
             <ALLINVENTORYENTRIES.LIST>
               <STOCKITEMNAME>20000</STOCKITEMNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <ACTUALQTY>-0 Nos</ACTUALQTY>
+              <BILLEDQTY>-0 Nos</BILLEDQTY>
+              <AMOUNT>-0</AMOUNT>
+              <RATE>0/Nos</RATE>
+            </ALLINVENTORYENTRIES.LIST>
+            <ALLINVENTORYENTRIES.LIST>
+              <STOCKITEMNAME>5000.0</STOCKITEMNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <ACTUALQTY>-0 Nos</ACTUALQTY>
+              <BILLEDQTY>-0 Nos</BILLEDQTY>
+              <AMOUNT>-0</AMOUNT>
+              <RATE>0/Nos</RATE>
+            </ALLINVENTORYENTRIES.LIST>
+          </VOUCHER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE>
+          <VOUCHER REMOTEID="CUSTOM002" VCHTYPE="Sales" ACTION="Create">
+            <DATE>20240126</DATE>
+            <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+            <VOUCHERNUMBER>CUSTOM002</VOUCHERNUMBER>
+            <PARTYNAME>Another Demo Corp</PARTYNAME>
+            <NARRATION>Single item demo</NARRATION>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Another Demo Corp</LEDGERNAME>
+              <GSTCLASS />
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>15000.0</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Sales</LEDGERNAME>
+              <GSTCLASS />
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <AMOUNT>-15000.0</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+            <ALLINVENTORYENTRIES.LIST>
+              <STOCKITEMNAME>12000</STOCKITEMNAME>
               <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
               <ACTUALQTY>-0 Nos</ACTUALQTY>
               <BILLEDQTY>-0 Nos</BILLEDQTY>
