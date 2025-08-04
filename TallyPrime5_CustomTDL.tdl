@@ -1,0 +1,592 @@
+;; TDL for Tally Prime 5 - Custom Enhancement Package
+;; Created by: AI Assistant
+;; Compatible with: Tally Prime 5.0 and above
+;; Description: Comprehensive TDL package with custom reports, validations, and enhancements
+
+[System: TDL]
+
+;; =====================================================
+;; VARIABLE DECLARATIONS
+;; =====================================================
+
+[Variable: SVCurrentCompany]
+    Type        : String
+    Default     : ##SVCurrentCompany
+    Persistent  : Yes
+
+[Variable: SVUserLevel]
+    Type        : String
+    Default     : "Admin"
+    Persistent  : Yes
+
+[Variable: SVCustomDate]
+    Type        : Date
+    Default     : ##SystemDate
+    Persistent  : No
+
+;; =====================================================
+;; CUSTOM FUNCTIONS
+;; =====================================================
+
+;; Function to get company's financial year
+[Function: GetFinancialYear]
+    Parameter   : pDate : Date
+    Returns     : String
+    Variable    : FYStart : Date
+    Variable    : FYEnd   : Date
+    
+    01 : FYStart  : if #pDate < (@@DMYToDate : "01" : "04" : $$Year : #pDate) then (@@DMYToDate : "01" : "04" : ($$Year : #pDate - 1)) else (@@DMYToDate : "01" : "04" : $$Year : #pDate)
+    02 : FYEnd    : @@DMYToDate : "31" : "03" : ($$Year : #FYStart + 1)
+    03 : Return   : $$Year : #FYStart + "-" + $$Year : #FYEnd
+
+;; Function to validate GST number
+[Function: ValidateGSTIN]
+    Parameter   : pGSTIN : String
+    Returns     : Logical
+    Variable    : GSTLength : Number
+    
+    01 : GSTLength : $$Length : #pGSTIN
+    02 : Return    : if #GSTLength = 15 then $$IsAlpha : $$Left : #pGSTIN : 2 else No
+
+;; Function to calculate age in days
+[Function: CalculateAge]
+    Parameter   : pFromDate : Date
+    Parameter   : pToDate   : Date
+    Returns     : Number
+    
+    01 : Return : #pToDate - #pFromDate
+
+;; Function to get party category
+[Function: GetPartyCategory]
+    Parameter   : pLedgerName : String
+    Returns     : String
+    Variable    : ParentGroup : String
+    
+    01 : ParentGroup : $$GroupOf : #pLedgerName
+    02 : Return      : if #ParentGroup contains "Sundry Debtors" then "Customer" else if #ParentGroup contains "Sundry Creditors" then "Supplier" else "Other"
+
+;; =====================================================
+;; CUSTOM REPORTS
+;; =====================================================
+
+;; Enhanced Ledger Report with additional details
+[Report: CustomLedgerReport]
+    Form        : CustomLedgerForm
+    Source      : Ledger
+
+[Form: CustomLedgerForm]
+    Parts       : CustomLedgerTitle, CustomLedgerDetails
+    
+[Part: CustomLedgerTitle]
+    Lines       : CustomLedgerTitleLine
+    Repeat      : CustomLedgerTitleLine : 1
+    Scrolled    : Vertical
+    
+[Line: CustomLedgerTitleLine]
+    Fields      : LedgerNameFld, LedgerGroupFld, LedgerTypeFld
+    
+[Field: LedgerNameFld]
+    Info        : "Ledger Name"
+    Width       : 25
+    Align       : Left
+    
+[Field: LedgerGroupFld]
+    Info        : "Group"
+    Width       : 20
+    Align       : Left
+    
+[Field: LedgerTypeFld]
+    Info        : "Type"
+    Width       : 15
+    Align       : Left
+
+[Part: CustomLedgerDetails]
+    Lines       : CustomLedgerDetailLine
+    Repeat      : CustomLedgerDetailLine : Ledger
+    Scrolled    : Vertical
+    
+[Line: CustomLedgerDetailLine]
+    Fields      : LedgerNameDetailFld, LedgerGroupDetailFld, LedgerTypeDetailFld, GSTINFld, OpeningBalFld
+    
+[Field: LedgerNameDetailFld]
+    Use         : Name Field
+    Set as      : $Name
+    Width       : 25
+    
+[Field: LedgerGroupDetailFld]
+    Use         : Name Field  
+    Set as      : $$GroupOf : $Name
+    Width       : 20
+    
+[Field: LedgerTypeDetailFld]
+    Use         : Name Field
+    Set as      : @@GetPartyCategory : $Name
+    Width       : 15
+    
+[Field: GSTINFld]
+    Use         : Name Field
+    Set as      : $PartyGSTIN
+    Width       : 15
+    
+[Field: OpeningBalFld]
+    Use         : Amount Field
+    Set as      : $OpeningBalance
+    Width       : 15
+
+;; Outstanding Analysis Report
+[Report: OutstandingAnalysisReport]
+    Form        : OutstandingAnalysisForm
+    Source      : Ledger
+    Filter      : OutstandingLedgerFilter
+    
+[Form: OutstandingAnalysisForm]
+    Parts       : OutstandingHeader, OutstandingDetails, OutstandingFooter
+    
+[Part: OutstandingHeader]
+    Lines       : OutstandingHeaderLine
+    
+[Line: OutstandingHeaderLine]
+    Fields      : OutstandingTitleFld
+    
+[Field: OutstandingTitleFld]
+    Info        : "Outstanding Analysis Report"
+    Width       : 80
+    Align       : Center
+    Style       : Large Bold
+    
+[Part: OutstandingDetails]
+    Lines       : OutstandingDetailLine
+    Repeat      : OutstandingDetailLine : Ledger
+    Scrolled    : Vertical
+    
+[Line: OutstandingDetailLine]
+    Fields      : PartyNameFld, OutstandingAmtFld, DaysOutstandingFld, CategoryFld
+    
+[Field: PartyNameFld]
+    Use         : Name Field
+    Set as      : $Name
+    Width       : 30
+    
+[Field: OutstandingAmtFld]
+    Use         : Amount Field
+    Set as      : $ClosingBalance
+    Width       : 15
+    
+[Field: DaysOutstandingFld]
+    Use         : Number Field
+    Set as      : @@CalculateAge : $LastVchDate : $$SystemDate
+    Width       : 10
+    
+[Field: CategoryFld]
+    Use         : Name Field
+    Set as      : if $ClosingBalance > 0 then "Receivable" else "Payable"
+    Width       : 15
+
+[Part: OutstandingFooter]
+    Lines       : OutstandingFooterLine
+    
+[Line: OutstandingFooterLine]
+    Fields      : TotalOutstandingFld
+    
+[Field: TotalOutstandingFld]
+    Use         : Amount Field
+    Set as      : $$Total : $ClosingBalance
+    Width       : 15
+
+[System Filter: OutstandingLedgerFilter]
+    Source      : Ledger
+    Condition   : $ClosingBalance <> 0
+
+;; GST Summary Report
+[Report: GSTSummaryReport]
+    Form        : GSTSummaryForm
+    Source      : Voucher
+    Filter      : GSTVoucherFilter
+    
+[Form: GSTSummaryForm]
+    Parts       : GSTSummaryHeader, GSTSummaryDetails
+    
+[Part: GSTSummaryHeader]
+    Lines       : GSTSummaryHeaderLine
+    
+[Line: GSTSummaryHeaderLine]
+    Fields      : GSTSummaryTitleFld, PeriodFld
+    
+[Field: GSTSummaryTitleFld]
+    Info        : "GST Summary Report"
+    Width       : 50
+    Style       : Large Bold
+    
+[Field: PeriodFld]
+    Info        : "Period"
+    Set as      : $$StringFromDate : $$PeriodFrom : "DD-MM-YYYY" + " to " + $$StringFromDate : $$PeriodTo : "DD-MM-YYYY"
+    Width       : 30
+
+[Part: GSTSummaryDetails]
+    Lines       : GSTSummaryDetailLine
+    Repeat      : GSTSummaryDetailLine : Voucher
+    Scrolled    : Vertical
+    
+[Line: GSTSummaryDetailLine]
+    Fields      : VchDateFld, VchTypeFld, VchNumFld, PartyGSTINFld, TaxableAmtFld, CGSTAmtFld, SGSTAmtFld, IGSTAmtFld
+    
+[Field: VchDateFld]
+    Use         : Short Date Field
+    Set as      : $Date
+    Width       : 12
+    
+[Field: VchTypeFld]
+    Use         : Name Field
+    Set as      : $VoucherTypeName
+    Width       : 10
+    
+[Field: VchNumFld]
+    Use         : Name Field
+    Set as      : $VoucherNumber
+    Width       : 12
+    
+[Field: PartyGSTINFld]
+    Use         : Name Field
+    Set as      : $$LedgerGSTIN : $PartyLedgerName
+    Width       : 15
+    
+[Field: TaxableAmtFld]
+    Use         : Amount Field
+    Set as      : $$AsAmount : $$CollAmtTotal : AllLedgerEntries : $LedgerName NOT Contains "GST"
+    Width       : 15
+    
+[Field: CGSTAmtFld]
+    Use         : Amount Field
+    Set as      : $$AsAmount : $$CollAmtTotal : AllLedgerEntries : $LedgerName Contains "CGST"
+    Width       : 12
+    
+[Field: SGSTAmtFld]
+    Use         : Amount Field
+    Set as      : $$AsAmount : $$CollAmtTotal : AllLedgerEntries : $LedgerName Contains "SGST"
+    Width       : 12
+    
+[Field: IGSTAmtFld]
+    Use         : Amount Field
+    Set as      : $$AsAmount : $$CollAmtTotal : AllLedgerEntries : $LedgerName Contains "IGST"
+    Width       : 12
+
+[System Filter: GSTVoucherFilter]
+    Source      : Voucher
+    Condition   : $$IsGSTApplicable : $GUID
+
+;; =====================================================
+;; MENU ENHANCEMENTS
+;; =====================================================
+
+;; Add custom menu to Gateway of Tally
+[Menu: Gateway of Tally]
+    Add         : Item : "Custom Reports" : Call : ShowCustomReportsMenu : After : $$LastItem
+
+[Menu: ShowCustomReportsMenu]
+    Item        : "Enhanced Ledger Report" : Call : CustomLedgerReport
+    Item        : "Outstanding Analysis"   : Call : OutstandingAnalysisReport  
+    Item        : "GST Summary Report"     : Call : GSTSummaryReport
+    Item        : "Custom Dashboard"       : Call : CustomDashboard
+    Item        : ""
+    Item        : "Import Data from Excel" : Call : CustomImportMenu
+    Item        : "Export Custom Reports"  : Call : CustomExportMenu
+
+;; Custom Dashboard
+[Report: CustomDashboard]
+    Form        : CustomDashboardForm
+    
+[Form: CustomDashboardForm]
+    Parts       : DashboardHeader, DashboardKPIs, DashboardCharts
+    Height      : 100% Screen
+    Width       : 100% Screen
+    
+[Part: DashboardHeader]
+    Lines       : DashboardHeaderLine
+    Height      : 10% of Form
+    
+[Line: DashboardHeaderLine]
+    Fields      : DashboardTitleFld, CurrentDateFld, CompanyNameFld
+    
+[Field: DashboardTitleFld]
+    Info        : "Business Dashboard"
+    Width       : 40
+    Style       : Extra Large Bold
+    Align       : Center
+    
+[Field: CurrentDateFld]
+    Use         : Short Date Field
+    Set as      : $$SystemDate
+    Width       : 15
+    Align       : Right
+    
+[Field: CompanyNameFld]
+    Use         : Name Field
+    Set as      : $$Company
+    Width       : 25
+
+[Part: DashboardKPIs]
+    Lines       : KPILine1, KPILine2
+    Height      : 30% of Form
+    
+[Line: KPILine1]
+    Fields      : TotalSalesFld, TotalPurchaseFld, NetProfitFld
+    
+[Field: TotalSalesFld]
+    Info        : "Total Sales"
+    Use         : Amount Field
+    Set as      : $$Total : Amount : "Sales"
+    Width       : 25
+    Style       : Large Bold
+    Color       : Green
+    
+[Field: TotalPurchaseFld]
+    Info        : "Total Purchases"
+    Use         : Amount Field
+    Set as      : $$Total : Amount : "Purchase"
+    Width       : 25
+    Style       : Large Bold
+    Color       : Red
+    
+[Field: NetProfitFld]
+    Info        : "Net Profit"
+    Use         : Amount Field
+    Set as      : ($$Total : Amount : "Sales") - ($$Total : Amount : "Purchase")
+    Width       : 25
+    Style       : Large Bold
+    Color       : Blue
+
+[Line: KPILine2]
+    Fields      : TotalReceivablesFld, TotalPayablesFld, CashPositionFld
+    
+[Field: TotalReceivablesFld]
+    Info        : "Total Receivables"
+    Use         : Amount Field
+    Set as      : $$Total : ClosingBalance : "Sundry Debtors" : $ClosingBalance > 0
+    Width       : 25
+    Style       : Large Bold
+    
+[Field: TotalPayablesFld]
+    Info        : "Total Payables"
+    Use         : Amount Field
+    Set as      : $$Total : ClosingBalance : "Sundry Creditors" : $ClosingBalance < 0
+    Width       : 25
+    Style       : Large Bold
+    
+[Field: CashPositionFld]
+    Info        : "Cash Position"
+    Use         : Amount Field
+    Set as      : $$Total : ClosingBalance : "Cash-in-Hand"
+    Width       : 25
+    Style       : Large Bold
+
+[Part: DashboardCharts]
+    Lines       : ChartLine
+    Height      : 60% of Form
+    
+[Line: ChartLine]
+    Fields      : SalesChartFld, ExpenseChartFld
+    
+[Field: SalesChartFld]
+    Info        : "Sales Trend"
+    Type        : Chart
+    Chart Type  : Line
+    Width       : 45% of Line
+    
+[Field: ExpenseChartFld]
+    Info        : "Expense Analysis"
+    Type        : Chart
+    Chart Type  : Pie
+    Width       : 45% of Line
+
+;; =====================================================
+;; VALIDATION FUNCTIONS
+;; =====================================================
+
+;; Voucher validation for mandatory fields
+[Function: ValidateVoucherEntry]
+    Parameter   : pVoucherType : String
+    Returns     : Logical
+    Variable    : IsValid      : Logical : Yes
+    
+    01 : IsValid : if $$IsEmpty : $Reference AND #pVoucherType = "Sales" then No else #IsValid
+    02 : IsValid : if $$IsEmpty : $PartyLedgerName then No else #IsValid
+    03 : IsValid : if $Amount = 0 then No else #IsValid
+    04 : Return  : #IsValid
+
+;; Ledger validation for GST compliance
+[Function: ValidateLedgerGST]
+    Parameter   : pLedgerName : String
+    Returns     : Logical
+    Variable    : ParentGroup : String
+    Variable    : GSTIN       : String
+    
+    01 : ParentGroup : $$GroupOf : #pLedgerName
+    02 : GSTIN       : $$LedgerGSTIN : #pLedgerName
+    03 : Return      : if (#ParentGroup Contains "Sundry Debtors" OR #ParentGroup Contains "Sundry Creditors") AND $$IsEmpty : #GSTIN then No else Yes
+
+;; Stock item validation
+[Function: ValidateStockItem]
+    Parameter   : pStockItemName : String
+    Returns     : Logical
+    Variable    : HSNCode        : String
+    Variable    : Unit           : String
+    
+    01 : HSNCode : $$StockItemHSN : #pStockItemName
+    02 : Unit    : $$StockItemUnit : #pStockItemName
+    03 : Return  : if $$IsEmpty : #HSNCode OR $$IsEmpty : #Unit then No else Yes
+
+;; =====================================================
+;; AUTO-CALCULATIONS
+;; =====================================================
+
+;; Auto-calculate due date based on credit terms
+[Function: CalculateDueDate]
+    Parameter   : pVoucherDate  : Date
+    Parameter   : pCreditDays   : Number
+    Returns     : Date
+    
+    01 : Return : #pVoucherDate + #pCreditDays
+
+;; Auto-calculate GST amount
+[Function: CalculateGSTAmount]
+    Parameter   : pTaxableAmount : Amount
+    Parameter   : pGSTRate       : Number
+    Returns     : Amount
+    
+    01 : Return : (#pTaxableAmount * #pGSTRate) / 100
+
+;; =====================================================
+;; CUSTOM IMPORT/EXPORT FUNCTIONS
+;; =====================================================
+
+[Menu: CustomImportMenu]
+    Item        : "Import Ledgers from Excel"     : Call : ImportLedgersFromExcel
+    Item        : "Import Stock Items from Excel" : Call : ImportStockItemsFromExcel
+    Item        : "Import Vouchers from Excel"    : Call : ImportVouchersFromExcel
+    Item        : ""
+    Item        : "Import Bank Statements"        : Call : ImportBankStatements
+
+[Menu: CustomExportMenu]
+    Item        : "Export Ledger List"       : Call : ExportLedgerList
+    Item        : "Export Trial Balance"     : Call : ExportTrialBalance
+    Item        : "Export GST Returns Data"  : Call : ExportGSTReturnsData
+    Item        : "Export Outstanding Report": Call : ExportOutstandingReport
+
+;; =====================================================
+;; EVENT HANDLERS
+;; =====================================================
+
+;; Pre-save validation for vouchers
+[System: Voucher]
+    On          : PreSave      : Call : ValidateVoucherEntry : $VoucherTypeName
+    On          : PostSave     : Call : UpdateCustomLog : $GUID
+
+;; Pre-save validation for ledgers  
+[System: Ledger]
+    On          : PreSave      : Call : ValidateLedgerGST : $Name
+    On          : PostSave     : Call : RefreshCustomCache
+
+;; Pre-save validation for stock items
+[System: Stock Item]
+    On          : PreSave      : Call : ValidateStockItem : $Name
+
+;; =====================================================
+;; CUSTOM FIELDS ENHANCEMENT
+;; =====================================================
+
+;; Add custom fields to voucher entry
+[Field: Custom Reference Field]
+    Use         : Name Field
+    Info        : "Custom Reference"
+    Width       : 20
+    Storage     : CustomerReference
+    
+[Field: Custom Remarks Field]
+    Use         : Name Field
+    Info        : "Internal Remarks"
+    Width       : 30
+    Storage     : InternalRemarks
+
+;; Add custom fields to ledger
+[Field: Credit Limit Field]
+    Use         : Amount Field
+    Info        : "Credit Limit"
+    Storage     : CreditLimit
+    
+[Field: Credit Days Field]
+    Use         : Number Field
+    Info        : "Credit Days"
+    Storage     : CreditDays
+
+;; =====================================================
+;; SHORTCUTS AND HOTKEYS
+;; =====================================================
+
+[Key: Alt+C]
+    Key         : Alt+C
+    Action      : Call : CustomDashboard
+    
+[Key: Alt+L]
+    Key         : Alt+L
+    Action      : Call : CustomLedgerReport
+    
+[Key: Alt+O]
+    Key         : Alt+O  
+    Action      : Call : OutstandingAnalysisReport
+    
+[Key: Alt+G]
+    Key         : Alt+G
+    Action      : Call : GSTSummaryReport
+
+;; =====================================================
+;; CUSTOM COLORS AND THEMES
+;; =====================================================
+
+[Color: Custom Green]
+    Red         : 0
+    Green       : 128
+    Blue        : 0
+    
+[Color: Custom Red]
+    Red         : 255
+    Green       : 0
+    Blue        : 0
+    
+[Color: Custom Blue]
+    Red         : 0
+    Green       : 0
+    Blue       : 255
+
+[Style: Large Bold]
+    Font        : Verdana
+    Font Size   : 14
+    Font Style  : Bold
+    
+[Style: Extra Large Bold]
+    Font        : Arial
+    Font Size   : 18
+    Font Style  : Bold
+
+;; =====================================================
+;; BACKUP AND SECURITY FUNCTIONS
+;; =====================================================
+
+[Function: CreateBackupLog]
+    Parameter   : pAction : String
+    Returns     : Logical
+    Variable    : LogEntry : String
+    
+    01 : LogEntry : $$SystemDate + " " + $$SystemTime + " - " + #pAction + " by " + $$User
+    02 : Call     : WriteToFile : "CustomLog.txt" : #LogEntry
+    03 : Return   : Yes
+
+[Function: CheckUserPermission]
+    Parameter   : pUser : String
+    Parameter   : pAction : String
+    Returns     : Logical
+    
+    01 : Return : if #pUser = "Admin" then Yes else if #pAction = "View" then Yes else No
+
+;; =====================================================
+;; END OF TDL FILE
+;; =====================================================
