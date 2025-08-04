@@ -1,0 +1,2 @@
+invoice_number,date,party_name,party_address,party_gstin,total_amount,tax_amount,item_count
+INV100,2024-01-20,Sample Customer Ltd,"123 Business Street, Mumbai",27SAMPLE1234G1Z5,11800,1800,2
