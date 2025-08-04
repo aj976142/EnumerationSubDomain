@@ -1,0 +1,2 @@
+invoice_number,date,party_name,party_address,party_gstin,total_amount,tax_amount,item_count
+INV004,2024-01-18,LMN Corporation,321 Tech Park Bangalore,29LMNEF3456K7L8,8850,1350,1

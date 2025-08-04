@@ -1,0 +1,4 @@
+invoice_number,date,party_name,party_address,party_gstin,total_amount,tax_amount,item_count
+INV001,2024-01-15,ABC Company,123 Main St Mumbai,27ABCDE1234F1Z5,11800,1800,1
+INV002,2024-01-16,XYZ Ltd,456 Park Ave Delhi,07XYZAB5678G2H9,5900,900,1
+INV003,2024-01-17,PQR Industries,789 Business St Chennai,33PQRCD9012I3J4,23600,3600,1

@@ -1,0 +1,19 @@
+[
+  {
+    "invoice_number": "INV004",
+    "date": "2024-01-18",
+    "party_name": "LMN Corporation",
+    "party_address": "321 Tech Park Bangalore",
+    "party_gstin": "29LMNEF3456K7L8",
+    "total_amount": "8850",
+    "tax_amount": "1350",
+    "items": [
+      {
+        "item_name": "Product D",
+        "quantity": "3",
+        "rate": "2500",
+        "amount": "7500"
+      }
+    ]
+  }
+]
