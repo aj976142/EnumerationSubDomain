@@ -1,0 +1,547 @@
+;; Excel Import TDL for Tally Prime 5
+;; Specialized TDL for importing data from Excel files
+;; Compatible with: Tally Prime 5.0 and above
+
+[System: TDL]
+
+;; =====================================================
+;; EXCEL IMPORT FRAMEWORK
+;; =====================================================
+
+;; Excel Import Configuration Variables
+[Variable: SVExcelFilePath]
+    Type        : String
+    Default     : ""
+    Persistent  : Yes
+
+[Variable: SVExcelWorksheet]
+    Type        : String  
+    Default     : "Sheet1"
+    Persistent  : Yes
+
+[Variable: SVImportType]
+    Type        : String
+    Default     : "Ledger"
+    Persistent  : Yes
+
+[Variable: SVStartRow]
+    Type        : Number
+    Default     : 2
+    Persistent  : Yes
+
+;; =====================================================
+;; EXCEL IMPORT FUNCTIONS
+;; =====================================================
+
+;; Main Excel Import Function
+[Function: ImportFromExcel]
+    Parameter   : pImportType : String
+    Returns     : Logical
+    Variable    : FilePath    : String
+    Variable    : Result      : Logical
+    
+    01 : FilePath : @@GetExcelFilePath
+    02 : Result   : if $$IsEmpty : #FilePath then No else @@ProcessExcelData : #pImportType : #FilePath
+    03 : Return   : #Result
+
+;; Function to get Excel file path from user
+[Function: GetExcelFilePath]
+    Returns     : String
+    Variable    : UserInput  : String
+    
+    01 : UserInput : $$InputBox : "Excel Import" : "Enter Excel file path:" : ##SVExcelFilePath
+    02 : SVExcelFilePath : #UserInput
+    03 : Return    : #UserInput
+
+;; Function to process Excel data based on type
+[Function: ProcessExcelData]
+    Parameter   : pType     : String
+    Parameter   : pFilePath : String
+    Returns     : Logical
+    Variable    : Result    : Logical
+    
+    01 : Result : if #pType = "Ledger" then @@ImportLedgersFromExcel : #pFilePath else if #pType = "StockItem" then @@ImportStockItemsFromExcel : #pFilePath else if #pType = "Voucher" then @@ImportVouchersFromExcel : #pFilePath else No
+    02 : Return : #Result
+
+;; =====================================================
+;; LEDGER IMPORT FROM EXCEL
+;; =====================================================
+
+[Function: ImportLedgersFromExcel]
+    Parameter   : pFilePath : String
+    Returns     : Logical
+    Variable    : RowCount  : Number
+    Variable    : CurrentRow: Number
+    Variable    : Success   : Number
+    Variable    : Failed    : Number
+    
+    01 : RowCount   : @@GetExcelRowCount : #pFilePath : ##SVExcelWorksheet
+    02 : CurrentRow : ##SVStartRow
+    03 : Success    : 0
+    04 : Failed     : 0
+    
+    05 : Walk       : CurrentRow : ##SVStartRow : #RowCount
+        06 : if @@ImportSingleLedger : #pFilePath : #CurrentRow then 
+            07 : Success : #Success + 1
+        08 : else
+            09 : Failed : #Failed + 1
+            
+    10 : Call       : ShowImportResult : "Ledgers" : #Success : #Failed
+    11 : Return     : Yes
+
+[Function: ImportSingleLedger]
+    Parameter   : pFilePath : String
+    Parameter   : pRowNum   : Number
+    Returns     : Logical
+    Variable    : LedgerName: String
+    Variable    : GroupName : String
+    Variable    : Address   : String
+    Variable    : Mobile    : String
+    Variable    : Email     : String
+    Variable    : GSTIN     : String
+    Variable    : OpeningBal: Amount
+    Variable    : Result    : Logical
+    
+    01 : LedgerName : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 1
+    02 : GroupName  : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 2
+    03 : Address    : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 3
+    04 : Mobile     : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 4
+    05 : Email      : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 5
+    06 : GSTIN      : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 6
+    07 : OpeningBal : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 7
+    
+    08 : Result     : @@CreateLedgerFromData : #LedgerName : #GroupName : #Address : #Mobile : #Email : #GSTIN : #OpeningBal
+    09 : Return     : #Result
+
+[Function: CreateLedgerFromData]
+    Parameter   : pName     : String
+    Parameter   : pGroup    : String  
+    Parameter   : pAddress  : String
+    Parameter   : pMobile   : String
+    Parameter   : pEmail    : String
+    Parameter   : pGSTIN    : String
+    Parameter   : pOpeningBal: Amount
+    Returns     : Logical
+    Variable    : XMLData   : String
+    Variable    : Result    : Logical
+    
+    01 : XMLData : @@BuildLedgerXML : #pName : #pGroup : #pAddress : #pMobile : #pEmail : #pGSTIN : #pOpeningBal
+    02 : Result  : @@ImportXMLData : #XMLData
+    03 : Return  : #Result
+
+[Function: BuildLedgerXML]
+    Parameter   : pName     : String
+    Parameter   : pGroup    : String
+    Parameter   : pAddress  : String  
+    Parameter   : pMobile   : String
+    Parameter   : pEmail    : String
+    Parameter   : pGSTIN    : String
+    Parameter   : pOpeningBal: Amount
+    Returns     : String
+    Variable    : XML       : String
+    
+    01 : XML : "<ENVELOPE>" + $$NewLine
+    02 : XML : #XML + "<HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>" + $$NewLine
+    03 : XML : #XML + "<BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>All Masters</REPORTNAME></REQUESTDESC>" + $$NewLine
+    04 : XML : #XML + "<REQUESTDATA><TALLYMESSAGE xmlns:UDF=""TallyUDF"">" + $$NewLine
+    05 : XML : #XML + "<LEDGER NAME=""" + #pName + """ ACTION=""Create"">" + $$NewLine
+    06 : XML : #XML + "<NAME>" + #pName + "</NAME>" + $$NewLine
+    07 : XML : #XML + "<PARENT>" + #pGroup + "</PARENT>" + $$NewLine
+    
+    08 : if NOT $$IsEmpty : #pAddress then
+        09 : XML : #XML + "<ADDRESS.LIST><ADDRESS>" + #pAddress + "</ADDRESS></ADDRESS.LIST>" + $$NewLine
+        
+    10 : if NOT $$IsEmpty : #pMobile then
+        11 : XML : #XML + "<LEDGERPHONE>" + #pMobile + "</LEDGERPHONE>" + $$NewLine
+        
+    12 : if NOT $$IsEmpty : #pEmail then
+        13 : XML : #XML + "<EMAIL>" + #pEmail + "</EMAIL>" + $$NewLine
+        
+    14 : if NOT $$IsEmpty : #pGSTIN then
+        15 : XML : #XML + "<PARTYGSTIN.LIST><PARTYGSTIN>" + #pGSTIN + "</PARTYGSTIN></PARTYGSTIN.LIST>" + $$NewLine
+        
+    16 : if #pOpeningBal <> 0 then
+        17 : XML : #XML + "<OPENINGBALANCE>" + $$String : #pOpeningBal + "</OPENINGBALANCE>" + $$NewLine
+        
+    18 : XML : #XML + "</LEDGER></TALLYMESSAGE></REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>"
+    19 : Return : #XML
+
+;; =====================================================
+;; STOCK ITEM IMPORT FROM EXCEL  
+;; =====================================================
+
+[Function: ImportStockItemsFromExcel]
+    Parameter   : pFilePath : String
+    Returns     : Logical
+    Variable    : RowCount  : Number
+    Variable    : CurrentRow: Number
+    Variable    : Success   : Number
+    Variable    : Failed    : Number
+    
+    01 : RowCount   : @@GetExcelRowCount : #pFilePath : ##SVExcelWorksheet
+    02 : CurrentRow : ##SVStartRow
+    03 : Success    : 0
+    04 : Failed     : 0
+    
+    05 : Walk       : CurrentRow : ##SVStartRow : #RowCount
+        06 : if @@ImportSingleStockItem : #pFilePath : #CurrentRow then
+            07 : Success : #Success + 1
+        08 : else
+            09 : Failed : #Failed + 1
+            
+    10 : Call       : ShowImportResult : "Stock Items" : #Success : #Failed
+    11 : Return     : Yes
+
+[Function: ImportSingleStockItem]
+    Parameter   : pFilePath : String
+    Parameter   : pRowNum   : Number
+    Returns     : Logical
+    Variable    : ItemName  : String
+    Variable    : Alias     : String
+    Variable    : Group     : String
+    Variable    : Unit      : String
+    Variable    : HSNCode   : String
+    Variable    : GSTRate   : Number
+    Variable    : OpeningQty: Number
+    Variable    : OpeningRate: Amount
+    Variable    : Result    : Logical
+    
+    01 : ItemName    : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 1
+    02 : Alias       : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 2
+    03 : Group       : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 3
+    04 : Unit        : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 4
+    05 : HSNCode     : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 5
+    06 : GSTRate     : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 6
+    07 : OpeningQty  : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 7
+    08 : OpeningRate : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 8
+    
+    09 : Result      : @@CreateStockItemFromData : #ItemName : #Alias : #Group : #Unit : #HSNCode : #GSTRate : #OpeningQty : #OpeningRate
+    10 : Return      : #Result
+
+[Function: CreateStockItemFromData]
+    Parameter   : pName     : String
+    Parameter   : pAlias    : String
+    Parameter   : pGroup    : String
+    Parameter   : pUnit     : String
+    Parameter   : pHSNCode  : String
+    Parameter   : pGSTRate  : Number
+    Parameter   : pOpeningQty: Number
+    Parameter   : pOpeningRate: Amount
+    Returns     : Logical
+    Variable    : XMLData   : String
+    Variable    : Result    : Logical
+    
+    01 : XMLData : @@BuildStockItemXML : #pName : #pAlias : #pGroup : #pUnit : #pHSNCode : #pGSTRate : #pOpeningQty : #pOpeningRate
+    02 : Result  : @@ImportXMLData : #XMLData
+    03 : Return  : #Result
+
+[Function: BuildStockItemXML]
+    Parameter   : pName     : String
+    Parameter   : pAlias    : String
+    Parameter   : pGroup    : String
+    Parameter   : pUnit     : String
+    Parameter   : pHSNCode  : String
+    Parameter   : pGSTRate  : Number
+    Parameter   : pOpeningQty: Number
+    Parameter   : pOpeningRate: Amount
+    Returns     : String
+    Variable    : XML       : String
+    
+    01 : XML : "<ENVELOPE>" + $$NewLine
+    02 : XML : #XML + "<HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>" + $$NewLine
+    03 : XML : #XML + "<BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>All Masters</REPORTNAME></REQUESTDESC>" + $$NewLine
+    04 : XML : #XML + "<REQUESTDATA><TALLYMESSAGE xmlns:UDF=""TallyUDF"">" + $$NewLine
+    05 : XML : #XML + "<STOCKITEM NAME=""" + #pName + """ ACTION=""Create"">" + $$NewLine
+    06 : XML : #XML + "<NAME>" + #pName + "</NAME>" + $$NewLine
+    
+    07 : if NOT $$IsEmpty : #pAlias then
+        08 : XML : #XML + "<ALIAS>" + #pAlias + "</ALIAS>" + $$NewLine
+        
+    09 : XML : #XML + "<PARENT>" + #pGroup + "</PARENT>" + $$NewLine
+    10 : XML : #XML + "<BASEUNITS>" + #pUnit + "</BASEUNITS>" + $$NewLine
+    
+    11 : if NOT $$IsEmpty : #pHSNCode then
+        12 : XML : #XML + "<GSTDETAILS.LIST><HSNCODE>" + #pHSNCode + "</HSNCODE>" + $$NewLine
+        13 : if #pGSTRate > 0 then
+            14 : XML : #XML + "<IGSTRATE>" + $$String : #pGSTRate + "</IGSTRATE>" + $$NewLine
+            15 : XML : #XML + "<CGSTRATE>" + $$String : (#pGSTRate / 2) + "</CGSTRATE>" + $$NewLine
+            16 : XML : #XML + "<SGSTRATE>" + $$String : (#pGSTRate / 2) + "</SGSTRATE>" + $$NewLine
+        17 : XML : #XML + "</GSTDETAILS.LIST>" + $$NewLine
+        
+    18 : if #pOpeningQty <> 0 then
+        19 : XML : #XML + "<OPENINGBALANCE.LIST>" + $$NewLine
+        20 : XML : #XML + "<OPENINGQUANTITY>" + $$String : #pOpeningQty + "</OPENINGQUANTITY>" + $$NewLine
+        21 : XML : #XML + "<OPENINGRATE>" + $$String : #pOpeningRate + "</OPENINGRATE>" + $$NewLine
+        22 : XML : #XML + "<OPENINGVALUE>" + $$String : (#pOpeningQty * #pOpeningRate) + "</OPENINGVALUE>" + $$NewLine
+        23 : XML : #XML + "</OPENINGBALANCE.LIST>" + $$NewLine
+        
+    24 : XML : #XML + "</STOCKITEM></TALLYMESSAGE></REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>"
+    25 : Return : #XML
+
+;; =====================================================
+;; VOUCHER IMPORT FROM EXCEL
+;; =====================================================
+
+[Function: ImportVouchersFromExcel]
+    Parameter   : pFilePath : String
+    Returns     : Logical
+    Variable    : RowCount  : Number
+    Variable    : CurrentRow: Number
+    Variable    : Success   : Number
+    Variable    : Failed    : Number
+    Variable    : VoucherType: String
+    
+    01 : VoucherType: @@GetVoucherTypeFromUser
+    02 : RowCount   : @@GetExcelRowCount : #pFilePath : ##SVExcelWorksheet
+    03 : CurrentRow : ##SVStartRow
+    04 : Success    : 0
+    05 : Failed     : 0
+    
+    06 : Walk       : CurrentRow : ##SVStartRow : #RowCount
+        07 : if @@ImportSingleVoucher : #pFilePath : #CurrentRow : #VoucherType then
+            08 : Success : #Success + 1
+        09 : else
+            10 : Failed : #Failed + 1
+            
+    11 : Call       : ShowImportResult : #VoucherType + " Vouchers" : #Success : #Failed
+    12 : Return     : Yes
+
+[Function: GetVoucherTypeFromUser]
+    Returns     : String
+    Variable    : VoucherType : String
+    
+    01 : VoucherType : $$InputBox : "Voucher Import" : "Enter Voucher Type (Sales/Purchase/Receipt/Payment):" : "Sales"
+    02 : Return      : #VoucherType
+
+[Function: ImportSingleVoucher]
+    Parameter   : pFilePath    : String
+    Parameter   : pRowNum      : Number
+    Parameter   : pVoucherType : String
+    Returns     : Logical
+    Variable    : VoucherNo    : String
+    Variable    : VoucherDate  : Date
+    Variable    : PartyName    : String
+    Variable    : Amount       : Amount
+    Variable    : Narration    : String
+    Variable    : Result       : Logical
+    
+    01 : VoucherNo   : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 1
+    02 : VoucherDate : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 2
+    03 : PartyName   : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 3
+    04 : Amount      : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 4
+    05 : Narration   : @@GetExcelCellValue : #pFilePath : ##SVExcelWorksheet : #pRowNum : 5
+    
+    06 : Result      : @@CreateVoucherFromData : #pVoucherType : #VoucherNo : #VoucherDate : #PartyName : #Amount : #Narration
+    07 : Return      : #Result
+
+[Function: CreateVoucherFromData]
+    Parameter   : pVoucherType : String
+    Parameter   : pVoucherNo   : String
+    Parameter   : pVoucherDate : Date
+    Parameter   : pPartyName   : String
+    Parameter   : pAmount      : Amount
+    Parameter   : pNarration   : String
+    Returns     : Logical
+    Variable    : XMLData      : String
+    Variable    : Result       : Logical
+    
+    01 : XMLData : @@BuildVoucherXML : #pVoucherType : #pVoucherNo : #pVoucherDate : #pPartyName : #pAmount : #pNarration
+    02 : Result  : @@ImportXMLData : #XMLData
+    03 : Return  : #Result
+
+[Function: BuildVoucherXML]
+    Parameter   : pVoucherType : String
+    Parameter   : pVoucherNo   : String
+    Parameter   : pVoucherDate : Date
+    Parameter   : pPartyName   : String
+    Parameter   : pAmount      : Amount
+    Parameter   : pNarration   : String
+    Returns     : String
+    Variable    : XML          : String
+    Variable    : DrLedger     : String
+    Variable    : CrLedger     : String
+    
+    01 : if #pVoucherType = "Sales" then
+        02 : DrLedger : #pPartyName
+        03 : CrLedger : "Sales"
+    04 : else if #pVoucherType = "Purchase" then
+        05 : DrLedger : "Purchase"
+        06 : CrLedger : #pPartyName
+    07 : else if #pVoucherType = "Receipt" then
+        08 : DrLedger : "Cash"
+        09 : CrLedger : #pPartyName
+    10 : else if #pVoucherType = "Payment" then
+        11 : DrLedger : #pPartyName
+        12 : CrLedger : "Cash"
+        
+    13 : XML : "<ENVELOPE>" + $$NewLine
+    14 : XML : #XML + "<HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>" + $$NewLine
+    15 : XML : #XML + "<BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC>" + $$NewLine
+    16 : XML : #XML + "<REQUESTDATA><TALLYMESSAGE xmlns:UDF=""TallyUDF"">" + $$NewLine
+    17 : XML : #XML + "<VOUCHER REMOTEID=""" + #pVoucherNo + """ VCHTYPE=""" + #pVoucherType + """ ACTION=""Create"">" + $$NewLine
+    18 : XML : #XML + "<DATE>" + $$StringFromDate : #pVoucherDate : "YYYYMMDD" + "</DATE>" + $$NewLine
+    19 : XML : #XML + "<VOUCHERTYPENAME>" + #pVoucherType + "</VOUCHERTYPENAME>" + $$NewLine
+    20 : XML : #XML + "<VOUCHERNUMBER>" + #pVoucherNo + "</VOUCHERNUMBER>" + $$NewLine
+    21 : XML : #XML + "<NARRATION>" + #pNarration + "</NARRATION>" + $$NewLine
+    22 : XML : #XML + "<ALLLEDGERENTRIES.LIST>" + $$NewLine
+    23 : XML : #XML + "<LEDGERNAME>" + #DrLedger + "</LEDGERNAME>" + $$NewLine
+    24 : XML : #XML + "<ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>" + $$NewLine
+    25 : XML : #XML + "<AMOUNT>" + $$String : #pAmount + "</AMOUNT>" + $$NewLine
+    26 : XML : #XML + "</ALLLEDGERENTRIES.LIST>" + $$NewLine
+    27 : XML : #XML + "<ALLLEDGERENTRIES.LIST>" + $$NewLine
+    28 : XML : #XML + "<LEDGERNAME>" + #CrLedger + "</LEDGERNAME>" + $$NewLine
+    29 : XML : #XML + "<ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>" + $$NewLine
+    30 : XML : #XML + "<AMOUNT>" + $$String : (-#pAmount) + "</AMOUNT>" + $$NewLine
+    31 : XML : #XML + "</ALLLEDGERENTRIES.LIST>" + $$NewLine
+    32 : XML : #XML + "</VOUCHER></TALLYMESSAGE></REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>"
+    33 : Return : #XML
+
+;; =====================================================
+;; UTILITY FUNCTIONS
+;; =====================================================
+
+[Function: GetExcelRowCount]
+    Parameter   : pFilePath   : String
+    Parameter   : pWorksheet  : String
+    Returns     : Number
+    Variable    : RowCount    : Number
+    
+    ;; This function would typically interface with Excel COM object
+    ;; For TDL implementation, we'll simulate row counting
+    01 : RowCount : 1000  ;; Default assumption
+    02 : Return   : #RowCount
+
+[Function: GetExcelCellValue]
+    Parameter   : pFilePath   : String
+    Parameter   : pWorksheet  : String
+    Parameter   : pRow        : Number
+    Parameter   : pColumn     : Number
+    Returns     : String
+    Variable    : CellValue   : String
+    
+    ;; This function would typically interface with Excel COM object
+    ;; For TDL implementation, we'll return placeholder
+    01 : CellValue : "Sample Data"
+    02 : Return    : #CellValue
+
+[Function: ImportXMLData]
+    Parameter   : pXMLData    : String
+    Returns     : Logical
+    Variable    : TempFile    : String
+    Variable    : Result      : Logical
+    
+    01 : TempFile : "temp_import.xml"
+    02 : Call     : WriteStringToFile : #TempFile : #pXMLData
+    03 : Result   : $$ImportData : #TempFile
+    04 : Call     : DeleteFile : #TempFile
+    05 : Return   : #Result
+
+[Function: WriteStringToFile]
+    Parameter   : pFileName   : String
+    Parameter   : pContent    : String
+    Returns     : Logical
+    
+    ;; This would write content to file
+    01 : Return : Yes
+
+[Function: DeleteFile]
+    Parameter   : pFileName   : String
+    Returns     : Logical
+    
+    ;; This would delete the temporary file
+    01 : Return : Yes
+
+[Function: ShowImportResult]
+    Parameter   : pDataType   : String
+    Parameter   : pSuccess    : Number
+    Parameter   : pFailed     : Number
+    Returns     : Logical
+    Variable    : Message     : String
+    
+    01 : Message : "Import Complete!" + $$NewLine + #pDataType + " Imported:" + $$NewLine + "Success: " + $$String : #pSuccess + $$NewLine + "Failed: " + $$String : #pFailed
+    02 : Call    : ShowMessage : #Message
+    03 : Return  : Yes
+
+[Function: ShowMessage]
+    Parameter   : pMessage    : String
+    Returns     : Logical
+    
+    01 : MsgBox  : #pMessage : "Import Result"
+    02 : Return  : Yes
+
+;; =====================================================
+;; MENU INTEGRATION
+;; =====================================================
+
+[Menu: CustomImportMenu]
+    Item        : "Import Ledgers from Excel"     : Call : ImportFromExcel : "Ledger"
+    Item        : "Import Stock Items from Excel" : Call : ImportFromExcel : "StockItem"  
+    Item        : "Import Vouchers from Excel"    : Call : ImportFromExcel : "Voucher"
+    Item        : ""
+    Item        : "Configure Import Settings"     : Call : ConfigureImportSettings
+
+[Report: ConfigureImportSettings]
+    Form        : ImportSettingsForm
+
+[Form: ImportSettingsForm]
+    Parts       : ImportSettingsTitle, ImportSettingsFields
+    Width       : 60
+    Height      : 20
+
+[Part: ImportSettingsTitle]
+    Lines       : ImportSettingsTitleLine
+    
+[Line: ImportSettingsTitleLine]
+    Fields      : ImportSettingsTitleFld
+    
+[Field: ImportSettingsTitleFld]
+    Info        : "Excel Import Configuration"
+    Width       : 60
+    Align       : Center
+    Style       : Large Bold
+
+[Part: ImportSettingsFields]
+    Lines       : FilePathLine, WorksheetLine, StartRowLine
+    
+[Line: FilePathLine]
+    Fields      : FilePathLabelFld, FilePathValueFld
+    
+[Field: FilePathLabelFld]
+    Info        : "Default File Path:"
+    Width       : 20
+    
+[Field: FilePathValueFld]
+    Use         : Name Field
+    Set as      : ##SVExcelFilePath
+    Modifies    : SVExcelFilePath
+    Width       : 40
+
+[Line: WorksheetLine]
+    Fields      : WorksheetLabelFld, WorksheetValueFld
+    
+[Field: WorksheetLabelFld]
+    Info        : "Worksheet Name:"
+    Width       : 20
+    
+[Field: WorksheetValueFld]
+    Use         : Name Field
+    Set as      : ##SVExcelWorksheet
+    Modifies    : SVExcelWorksheet
+    Width       : 40
+
+[Line: StartRowLine]
+    Fields      : StartRowLabelFld, StartRowValueFld
+    
+[Field: StartRowLabelFld]
+    Info        : "Start Row:"
+    Width       : 20
+    
+[Field: StartRowValueFld]
+    Use         : Number Field
+    Set as      : ##SVStartRow
+    Modifies    : SVStartRow
+    Width       : 40
+
+;; =====================================================
+;; END OF EXCEL IMPORT TDL
+;; =====================================================
